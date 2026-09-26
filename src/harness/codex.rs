@@ -5,7 +5,11 @@ use serde_json::Value;
 use super::{AnyHarness, Harness, sealed};
 use crate::payload::text;
 use crate::tool::input;
-use crate::{CodexEvent, Tool};
+use crate::view::{
+    CodexView, PermissionRequest, PostCompact, PostToolUse, PreCompact, PreToolUse, Raw,
+    SessionEnd, SessionStart, Stop, SubagentStart, SubagentStop, UserPromptSubmit,
+};
+use crate::{CodexEvent, Payload, Tool};
 
 /// OpenAI Codex.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -28,5 +32,27 @@ impl Harness for Codex {
             _ => Tool::mcp(name, None, input),
         };
         Some(known.unwrap_or(Tool::Other { name, input }))
+    }
+
+    type View<'a> = CodexView<'a>;
+
+    fn view(payload: &Payload<Self>) -> CodexView<'_> {
+        match payload.event() {
+            CodexEvent::PreToolUse => CodexView::PreToolUse(PreToolUse(payload)),
+            CodexEvent::PostToolUse => CodexView::PostToolUse(PostToolUse(payload)),
+            CodexEvent::PermissionRequest => {
+                CodexView::PermissionRequest(PermissionRequest(payload))
+            }
+            CodexEvent::SessionStart => CodexView::SessionStart(SessionStart(payload)),
+            CodexEvent::SessionEnd => CodexView::SessionEnd(SessionEnd(payload)),
+            CodexEvent::UserPromptSubmit => CodexView::UserPromptSubmit(UserPromptSubmit(payload)),
+            CodexEvent::Stop => CodexView::Stop(Stop(payload)),
+            CodexEvent::Interrupt => CodexView::Interrupt(Raw(payload)),
+            CodexEvent::SubagentStart => CodexView::SubagentStart(SubagentStart(payload)),
+            CodexEvent::SubagentStop => CodexView::SubagentStop(SubagentStop(payload)),
+            CodexEvent::PreCompact => CodexView::PreCompact(PreCompact(payload)),
+            CodexEvent::PostCompact => CodexView::PostCompact(PostCompact(payload)),
+            CodexEvent::Other(_) => CodexView::Other(Raw(payload)),
+        }
     }
 }

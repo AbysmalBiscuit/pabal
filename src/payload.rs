@@ -35,6 +35,11 @@ impl<H: Harness> Payload<H> {
     pub fn event(&self) -> &H::Event {
         &self.event
     }
+
+    /// Narrows the payload to its event's view.
+    pub fn view(&self) -> H::View<'_> {
+        H::view(self)
+    }
 }
 
 /// The accessors every payload has, whatever its harness.
