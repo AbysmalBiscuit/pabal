@@ -82,3 +82,26 @@ fn codex_responses_match_the_output_schemas() {
     }
     assert!(failures.is_empty(), "{}", failures.join("\n"));
 }
+
+#[test]
+fn codex_fixtures_match_the_input_schemas() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/codex");
+    let mut failures = Vec::new();
+    let mut checked = 0;
+    for event_dir in std::fs::read_dir(&root).unwrap() {
+        let event_dir = event_dir.unwrap().path();
+        let event = event_dir.file_name().unwrap().to_str().unwrap().to_owned();
+        let schema = schema(&event, "input");
+        for file in std::fs::read_dir(&event_dir).unwrap() {
+            let path = file.unwrap().path();
+            let instance: Value =
+                serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+            for e in errors(&schema, &instance) {
+                failures.push(format!("{}: {e}", path.display()));
+            }
+            checked += 1;
+        }
+    }
+    assert!(checked > 0, "no Codex fixtures under {}", root.display());
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
