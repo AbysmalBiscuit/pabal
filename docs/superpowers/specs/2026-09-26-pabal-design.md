@@ -131,7 +131,7 @@ v0.1.0 seed lists (the drift CI is the authority after release):
 |---|---|---|
 | Claude Code | PreToolUse, PostToolUse, PostToolUseFailure, PostToolBatch, UserPromptSubmit, SessionStart, SessionEnd, SubagentStart, SubagentStop, PermissionRequest, PermissionDenied, Stop, StopFailure, PreCompact, PostCompact, Notification, CwdChanged, WorktreeCreate, WorktreeRemove | devkit `hooks/hooks.json`, mcpls `HookEvent`, herdr fixtures |
 | Codex | PreToolUse, PostToolUse, PermissionRequest, SessionStart, SessionEnd, UserPromptSubmit, Stop, Interrupt, SubagentStart, SubagentStop, PreCompact, PostCompact | `codex-rs/hooks/schema/generated/*.command.input.schema.json` at rust-v0.155.1 |
-| Cursor | preToolUse, postToolUse, postToolUseFailure, beforeShellExecution, sessionStart, sessionEnd, subagentStop, stop, preCompact, workspaceOpen | devkit `hooks/hooks-cursor.json`, `agent-config` Cursor notes; confirm against Cursor's hooks docs before release |
+| Cursor | sessionStart, sessionEnd, preToolUse, postToolUse, postToolUseFailure, subagentStart, subagentStop, beforeShellExecution, afterShellExecution, beforeMCPExecution, afterMCPExecution, beforeReadFile, afterFileEdit, beforeSubmitPrompt, preCompact, stop, beforeTabFileRead, afterTabFileEdit, afterAgentResponse, afterAgentThought, workspaceOpen | [Cursor hooks docs](https://cursor.com/docs/hooks), read 2026-09-26 |
 
 ### Payloads
 
@@ -159,7 +159,7 @@ impl<H: Harness> Payload<H> {
 
 Every field is `Option`. An absent field is `None`, never `""`. Codex sends `transcript_path: null` on some sessions (alacritree fixture `codex-session-start.json`). Anything `pabal` does not model stays reachable through `raw()`.
 
-Field fallbacks per harness move here from devkit's `parse_shell_payload`: Cursor names the session `conversation_id` and the parent `parent_conversation_id`.
+Field fallbacks per harness move here from devkit's `parse_shell_payload`: Cursor names the session `conversation_id` and the parent `parent_conversation_id`. Every Cursor hook also carries `generation_id`, `model`, `model_id`, `model_params`, `cursor_version`, `workspace_roots`, `user_email` and `transcript_path` ([Cursor hooks docs](https://cursor.com/docs/hooks)).
 
 `agent()` carries devkit's subagent rule: a Claude Code payload speaks for a subagent only when it has both `agent_id` and a non-empty `agent_type`. Claude forks side conversations (progress summaries, prompt suggestions) under a fresh `agent_id` with no `agent_type`, and a fork can end without `SubagentStop`, so a fork speaks for its session.
 
@@ -169,7 +169,7 @@ Field fallbacks per harness move here from devkit's `parse_shell_payload`: Curso
 
 ```rust
 pub enum Tool<'a> {
-    Shell { command: &'a str, cwd: Option<&'a Path> },
+    Shell { command: &'a str, cwd: Option<&'a Path>, shell: Option<ShellKind> },
     Edit(Edit<'a>),
     Mcp { server: Option<&'a str>, tool: &'a str, input: &'a Value },
     Other { name: &'a str, input: &'a Value },
@@ -184,13 +184,29 @@ pub enum Edit<'a> {
 impl Edit<'_> {
     pub fn paths(&self) -> Vec<PathBuf>;  // Patch: parsed from *** Add/Update/Delete File: and *** Move to: headers
 }
+
+#[derive(strum::EnumString, strum::IntoStaticStr, ...)]
+pub enum ShellKind {
+    Bash,
+    PowerShell,
+    #[strum(default)]
+    Other(String),
+}
 ```
+
+`shell` is `Some` only when the payload names the shell directly, and `None` otherwise. `pabal` never guesses it from the platform or the hook process's environment. On Claude Code's Windows `PowerShell` tool the hook itself runs under Git Bash, so the environment describes the hook, not the command.
+
+| Harness | `shell` |
+|---|---|
+| Claude Code | From `tool_name`: `Bash` gives `Bash`, `PowerShell` gives `PowerShell` |
+| Codex | `None`. Its `Bash` tool name is the historical label for every shell tool (`core/src/tools/hook_names.rs`), and it runs PowerShell on Windows. The `shell` argument of `exec_command` is not in the hook input. |
+| Cursor | `None`. Neither `beforeShellExecution` nor the `preToolUse` Shell payload has a shell field. |
 
 Per-harness mapping (the tables live in `tool.rs`):
 
 | Variant | Claude Code | Codex | Cursor |
 |---|---|---|---|
-| `Shell` | `Bash`, `PowerShell` with `tool_input.command` | `Bash` (from `exec_command`) with `tool_input.command`; `cwd` from the payload, since `exec_command` has no workdir argument | `Shell`, or `beforeShellExecution`; `cwd` from `tool_input.working_directory` |
+| `Shell` | `Bash`, `PowerShell` with `tool_input.command` | `Bash` (from `exec_command`) with `tool_input.command`; `cwd` from the payload, since `exec_command` has no workdir argument | `preToolUse` `Shell` with `tool_input.command` and `tool_input.working_directory`; `beforeShellExecution` with top-level `command` and `cwd` |
 | `Edit::Write` | `Write`, `Edit`, `MultiEdit`, `NotebookEdit` | none | `Write`, `Edit` |
 | `Edit::Patch` | none | `apply_patch` with `tool_input.command` = raw patch | none |
 | `Edit::Delete` | none | none (inside `Patch`) | `Delete` |
@@ -247,7 +263,7 @@ One `pabal::Error` (via `thiserror`) for input that is not a JSON object. Unknow
 ```rust
 use pabal::prelude::*;
 // ClaudeCode, Codex, Cursor, AnyHarness, Harness,
-// Payload, View, AnyView, AnyEvent, Tool, Edit,
+// Payload, View, AnyView, AnyEvent, Tool, Edit, ShellKind,
 // Response, Deny, AddContext, Ask, Allow
 ```
 
@@ -302,9 +318,8 @@ Each consumer migration is a separate issue in its own repo, after v0.1.0 is pub
 ## Setup
 
 - Install the Claude GitHub app on `AbysmalBiscuit/pabal` so the drift job's `@claude` tag acts.
-- Reserve the crates.io name with an early `0.0.1` publish, or accept the risk until v0.1.0.
+- Publish the first crates.io release once the crate has working functionality. crates.io's policies prohibit a crate that "exists only to reserve a name for a prolonged period of time ... without having any genuine functionality, purpose, or significant development activity".
 
 ## Open questions
 
-1. Should `Tool::Shell` carry a shell-dialect hint (Claude `PowerShell` tool, Codex on Windows)? devkit's `dialect::resolve` mixes that protocol fact with its own config; v0.1.0 leaves it to the consumer, reading `tool_name`.
-2. Cursor's `beforeShellExecution` payload shape needs confirming from Cursor's docs: whether `command` is top-level (devkit reads both top-level `command` and `tool_input.command`).
+None.
