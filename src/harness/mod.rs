@@ -1,5 +1,25 @@
 use serde_json::Value;
 
+use crate::EventKind;
+
+mod claude_code;
+mod codex;
+
+pub use claude_code::ClaudeCode;
+pub use codex::Codex;
+
+mod sealed {
+    pub trait Sealed {}
+}
+
+/// A harness's wire vocabulary, used through generics as `Payload<H>`.
+///
+/// Sealed: only this crate's harness types implement it.
+pub trait Harness: sealed::Sealed + Sized + 'static {
+    const KIND: AnyHarness;
+    type Event: EventKind;
+}
+
 /// A harness chosen at runtime, from a `--harness` flag or from the payload.
 ///
 /// Its string forms are `claude-code` (alias `claude`) and `codex`.
