@@ -161,6 +161,8 @@ v0.1.0 seed lists come from each vendor's own source, so the first drift run doe
 | Codex | PreToolUse, PostToolUse, PermissionRequest, SessionStart, SessionEnd, UserPromptSubmit, Stop, Interrupt, SubagentStart, SubagentStop, PreCompact, PostCompact | `codex-rs/hooks/schema/generated/*.command.input.schema.json` at rust-v0.155.1 |
 | Cursor | sessionStart, sessionEnd, preToolUse, postToolUse, postToolUseFailure, subagentStart, subagentStop, beforeShellExecution, afterShellExecution, beforeMCPExecution, afterMCPExecution, beforeReadFile, afterFileEdit, beforeSubmitPrompt, preCompact, stop, beforeTabFileRead, afterTabFileEdit, afterAgentResponse, afterAgentThought, workspaceOpen | [Cursor hooks docs](https://cursor.com/docs/hooks), read 2026-09-26 |
 
+Cursor also runs hooks configured for Claude Code (`~/.claude/settings.json` and project `.claude/settings.json`, on by default), and sends those hooks Claude's event names ([Cursor third-party hooks docs](https://cursor.com/docs/reference/third-party-hooks); herdr's fixtures show `SessionStart` with `cursor_version`). `CursorEvent` accepts the Claude spelling as an alias for the eight events Cursor maps: `PreToolUse`, `PostToolUse`, `UserPromptSubmit` (to `beforeSubmitPrompt`), `Stop`, `SubagentStop`, `SessionStart`, `SessionEnd`, `PreCompact`. Cursor accepts Claude's nested `hookSpecificOutput` responses on those hooks, so a consumer that passes `--harness claude-code` also answers correctly.
+
 Every event gets a variant. Only the events a consumer handles get a dedicated view (see Views); the rest narrow to a generic view over the raw payload.
 
 `AnyEvent` is the shared form. It has a variant for each meaning at least two harnesses send, and `Other(String)` carrying the vendor name for the rest:
@@ -217,7 +219,7 @@ Every accessor returns `Option`. An absent field is `None`, never `""`. Codex se
 Per-harness field rules:
 
 - `session_id()`: `session_id`; Cursor falls back to `conversation_id`. devkit's fallback to `parent_conversation_id` is not carried over. Cursor documents that field only on `subagentStart`, where it names the parent, not the session.
-- `cwd()`: top-level `cwd`, falling back to `tool_input.working_directory`. Cursor's `preToolUse` has no top-level `cwd`, so this keeps devkit's `payload_cwd` behavior.
+- `cwd()`: top-level `cwd`, falling back to `tool_input.working_directory`, as devkit's `payload_cwd` does. Cursor documents a top-level `cwd` on `preToolUse` but not on every event, and the fallback covers payloads that omit it.
 - `tool_use_id()`: all three harnesses send it on tool events. Claude omits it on `PermissionRequest`.
 
 Every Cursor hook also carries `conversation_id`, `generation_id`, `model`, `model_id`, `model_params`, `cursor_version`, `workspace_roots`, `user_email` and `transcript_path` ([Cursor hooks docs](https://cursor.com/docs/hooks)).
@@ -358,7 +360,7 @@ use pabal::prelude::*;
 
 | Crate | Why |
 |---|---|
-| `serde`, `serde_json` | payloads and responses |
+| `serde_json` | payloads and responses, both handled as `serde_json::Value` |
 | `strum` | event, harness and shell string forms |
 | `ambassador` | `AnyPayload` delegation of `Fields` |
 | `thiserror` | `Error` |
@@ -383,7 +385,7 @@ A scheduled workflow (weekly) checks each harness against its upstream source:
 | Harness | Source | Check |
 |---|---|---|
 | Codex | latest `rust-v*` release tag of `openai/codex`, `codex-rs/hooks/schema/generated/` | Event list equals `CodexEvent`; fixtures validate against input schemas; responses validate against output schemas |
-| Claude Code | the hooks reference page, plus the hook input types in the latest `@anthropic-ai/claude-agent-sdk` type declarations | Event list equals `ClaudeCodeEvent`; declared fields are covered by fixtures |
+| Claude Code | `sdk.d.ts` in the latest `@anthropic-ai/claude-agent-sdk`: the `HOOK_EVENTS` constant and the `<Event>HookInput` types | Event list equals `ClaudeCodeEvent`; each required field of a `<Event>HookInput` appears in that event's fixtures |
 | Cursor | Cursor's hooks docs page | Event list equals `CursorEvent` |
 
 On drift, the job opens or updates one issue per harness listing what changed, and tags `@claude` in it to open a PR adding fixtures and variants. Each such PR is reviewed by hand, since a new variant is a minor bump for every consumer.
