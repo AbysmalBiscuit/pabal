@@ -1,9 +1,10 @@
-//! Typed hook payloads and responses for coding-agent harnesses.
+#![doc = include_str!("../README.md")]
 
 mod error;
 mod event;
 mod harness;
 mod payload;
+pub mod prelude;
 mod response;
 mod tool;
 pub mod view;

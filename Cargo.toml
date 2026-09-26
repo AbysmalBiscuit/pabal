@@ -8,6 +8,7 @@ description = "Typed hook payloads and responses for Claude Code and Codex"
 repository = "https://github.com/AbysmalBiscuit/pabal"
 keywords = ["hooks", "claude-code", "codex", "agents"]
 categories = ["development-tools", "parser-implementations"]
+readme = "README.md"
 
 [features]
 clap = ["dep:clap"]
