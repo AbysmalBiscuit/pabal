@@ -1,6 +1,8 @@
 use serde_json::Value;
 
-use crate::EventKind;
+use std::path::Path;
+
+use crate::{EventKind, Tool};
 
 mod claude_code;
 mod codex;
@@ -18,6 +20,11 @@ mod sealed {
 pub trait Harness: sealed::Sealed + Sized + 'static {
     const KIND: AnyHarness;
     type Event: EventKind;
+
+    /// The tool view of `call`, an object with `tool_name` and `tool_input`:
+    /// a single-tool payload, or one entry of a batch.
+    #[doc(hidden)]
+    fn tool<'a>(call: &'a Value, cwd: Option<&'a Path>) -> Option<Tool<'a>>;
 }
 
 /// A harness chosen at runtime, from a `--harness` flag or from the payload.

@@ -3,7 +3,7 @@ use std::path::Path;
 
 use serde_json::Value;
 
-use crate::{AnyEvent, AnyHarness, ClaudeCode, Codex, Error, EventKind, Harness};
+use crate::{AnyEvent, AnyHarness, ClaudeCode, Codex, Error, EventKind, Harness, Tool};
 
 /// A hook payload from harness `H`: its event and the raw JSON.
 #[derive(Debug, Clone)]
@@ -57,6 +57,8 @@ pub trait Fields {
     /// session.
     fn agent(&self) -> Option<&str>;
     fn tool_use_id(&self) -> Option<&str>;
+    /// The tool call of a single-tool event; `None` without a `tool_name`.
+    fn tool(&self) -> Option<Tool<'_>>;
     fn raw(&self) -> &Value;
 }
 
@@ -87,6 +89,9 @@ impl<H: Harness> Fields for Payload<H> {
     }
     fn tool_use_id(&self) -> Option<&str> {
         text(&self.raw, "tool_use_id")
+    }
+    fn tool(&self) -> Option<Tool<'_>> {
+        H::tool(&self.raw, self.cwd())
     }
     fn raw(&self) -> &Value {
         &self.raw
