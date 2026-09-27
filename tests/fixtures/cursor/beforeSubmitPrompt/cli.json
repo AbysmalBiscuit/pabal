@@ -2,16 +2,10 @@
   "conversation_id": "262a9ab5-c135-4f9e-afe5-4e674e603d7b",
   "generation_id": "e9d42a4d-a2ec-44ce-b1bd-b0dc4837e5ea",
   "model": "default",
-  "tool_name": "Shell",
-  "tool_input": {
-    "command": "echo pabal-probe",
-    "cwd": "",
-    "timeout": 30000
-  },
-  "tool_use_id": "2f690fc9-5f0f-4785-a9b4-e27b91dec4cd",
-  "cwd": "",
+  "prompt": "Do these steps in order, one tool call each: 1) run the shell command `echo pabal-probe`; 2) create the file cursor-test.txt containing hello; 3) change hello to bye in it; 4) read the file; 5) delete the file. Then say done.",
+  "attachments": [],
   "session_id": "262a9ab5-c135-4f9e-afe5-4e674e603d7b",
-  "hook_event_name": "preToolUse",
+  "hook_event_name": "beforeSubmitPrompt",
   "cursor_version": "2026.09.26-dd393fe",
   "workspace_roots": [
     "/home/user/project"

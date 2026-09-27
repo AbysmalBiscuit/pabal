@@ -2,14 +2,11 @@
   "conversation_id": "262a9ab5-c135-4f9e-afe5-4e674e603d7b",
   "generation_id": "e9d42a4d-a2ec-44ce-b1bd-b0dc4837e5ea",
   "model": "default",
-  "tool_name": "Shell",
+  "tool_name": "Delete",
   "tool_input": {
-    "command": "echo pabal-probe",
-    "cwd": "",
-    "timeout": 30000
+    "file_path": "/home/user/project/cursor-test.txt"
   },
-  "tool_use_id": "2f690fc9-5f0f-4785-a9b4-e27b91dec4cd",
-  "cwd": "",
+  "tool_use_id": "call-dab21943-ad62-458e-b485-e446e861de91-5\nfc_fbe28be1-7259-9f40-96fa-a3ccb63a229b_0",
   "session_id": "262a9ab5-c135-4f9e-afe5-4e674e603d7b",
   "hook_event_name": "preToolUse",
   "cursor_version": "2026.09.26-dd393fe",
@@ -17,5 +14,5 @@
     "/home/user/project"
   ],
   "user_email": "user@example.com",
-  "transcript_path": null
+  "transcript_path": "/home/user/.cursor/projects/home-user-project/agent-transcripts/262a9ab5-c135-4f9e-afe5-4e674e603d7b/262a9ab5-c135-4f9e-afe5-4e674e603d7b.jsonl"
 }

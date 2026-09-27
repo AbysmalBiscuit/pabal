@@ -400,11 +400,11 @@ Each consumer migration is a separate issue in its own repo, after v0.1.0 is pub
 
 ## Cursor
 
-Cursor is the first harness added after v0.1.0: a `Cursor` type, `CursorEvent`, `CursorView`, `AnyHarness::Cursor`, and Cursor columns in the tables above. Its facts come from the [Cursor hooks reference](https://cursor.com/docs/hooks.md) and the bundled source of the Cursor CLI (`cursor-agent` 2026.09.26-dd393fe), both read 2026-09-27. The fixtures under `tests/fixtures/cursor/` are built from the reference and corrected against the CLI source; none is a captured payload.
+Cursor is the first harness added after v0.1.0: a `Cursor` type, `CursorEvent`, `CursorView`, `AnyHarness::Cursor`, and Cursor columns in the tables above. Its facts come from the [Cursor hooks reference](https://cursor.com/docs/hooks.md) and the bundled source of the Cursor CLI (`cursor-agent` 2026.09.26-dd393fe), both read 2026-09-27. Most fixtures under `tests/fixtures/cursor/` are payloads captured from the CLI, with paths and email anonymized. Events the capture run did not reach (subagents, compaction, MCP, `afterAgentResponse` and the tab events) keep fixtures built from the reference and the CLI source. Deny, `ask` on `beforeShellExecution` and `additional_context` on `preToolUse` were tried against the CLI.
 
 What the CLI source settles:
 
-- **Tool input.** `Shell` is `{command, cwd, timeout?}`, with `cwd` also at the top level. `Write` is `{file_path, content}`, `Delete` and `Read` are `{file_path}`.
+- **Tool input.** `Shell` is `{command, cwd, timeout?}`, with `cwd` also at the top level. A command run in the workspace root sends `cwd: ""`, which reads as no cwd. `Write` is `{file_path, content}`, `Delete` and `Read` are `{file_path}`.
 - **MCP naming.** `preToolUse` names MCP tools `MCP:<tool>`, with no server field. Only `beforeMCPExecution` and `afterMCPExecution` carry `mcp_server_name`, beside the bare tool name.
 - **Ids.** `tool_use_id` is a random UUID for Shell and MCP calls, so it does not match the model's tool-call id. A subagent's tool events carry no subagent id; `subagent_id` appears only on `subagentStart` and `subagentStop`.
 

@@ -2,20 +2,16 @@
   "conversation_id": "262a9ab5-c135-4f9e-afe5-4e674e603d7b",
   "generation_id": "e9d42a4d-a2ec-44ce-b1bd-b0dc4837e5ea",
   "model": "default",
-  "tool_name": "Shell",
-  "tool_input": {
-    "command": "echo pabal-probe",
-    "cwd": "",
-    "timeout": 30000
-  },
-  "tool_use_id": "2f690fc9-5f0f-4785-a9b4-e27b91dec4cd",
-  "cwd": "",
+  "command": "echo pabal-probe",
+  "output": "pabal-probe\n",
+  "duration": 9741.911,
+  "sandbox": false,
   "session_id": "262a9ab5-c135-4f9e-afe5-4e674e603d7b",
-  "hook_event_name": "preToolUse",
+  "hook_event_name": "afterShellExecution",
   "cursor_version": "2026.09.26-dd393fe",
   "workspace_roots": [
     "/home/user/project"
   ],
   "user_email": "user@example.com",
-  "transcript_path": null
+  "transcript_path": "/home/user/.cursor/projects/home-user-project/agent-transcripts/262a9ab5-c135-4f9e-afe5-4e674e603d7b/262a9ab5-c135-4f9e-afe5-4e674e603d7b.jsonl"
 }

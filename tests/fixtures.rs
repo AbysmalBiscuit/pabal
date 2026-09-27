@@ -246,15 +246,20 @@ fn every_tool_fixture_gives_its_tool_view() {
             "cursor/afterMCPExecution/docs.json",
             "mcp linear/save_issue",
         ),
-        ("cursor/afterShellExecution/docs.json", "shell -"),
+        ("cursor/afterShellExecution/cli.json", "shell -"),
         (
             "cursor/beforeMCPExecution/docs.json",
             "mcp linear/save_issue",
         ),
-        ("cursor/beforeShellExecution/docs.json", "shell -"),
-        ("cursor/postToolUse/docs.json", "shell -"),
-        ("cursor/postToolUseFailure/docs.json", "shell -"),
+        ("cursor/beforeShellExecution/cli.json", "shell -"),
+        ("cursor/postToolUse/shell.json", "shell -"),
+        ("cursor/postToolUse/write.json", "write"),
+        ("cursor/postToolUseFailure/denied-shell.json", "shell -"),
+        ("cursor/postToolUseFailure/read.json", "other Read"),
+        ("cursor/preToolUse/delete.json", "other Delete"),
+        ("cursor/preToolUse/read.json", "other Read"),
         ("cursor/preToolUse/shell.json", "shell -"),
+        ("cursor/preToolUse/write.json", "write"),
     ];
     let mut failures = Vec::new();
     for f in fixtures() {
