@@ -51,8 +51,11 @@ let response = match payload.view() {
     _ => Response::none(),
 };
 assert_eq!(
-    response.to_string(),
-    r#"{"hookSpecificOutput":{"additionalContext":"tasks: none","hookEventName":"SessionStart"}}"#
+    response.json(),
+    Some(&serde_json::json!({"hookSpecificOutput": {
+        "hookEventName": "SessionStart",
+        "additionalContext": "tasks: none"
+    }}))
 );
 ```
 
@@ -68,4 +71,4 @@ The optional `clap` feature derives `clap::ValueEnum` on `AnyHarness`.
 
 ## License
 
-Licensed under either of [Apache License, Version 2.0](LICENSE-APACHE) or [MIT license](LICENSE-MIT) at your option.
+Licensed under either of [Apache License, Version 2.0](https://github.com/AbysmalBiscuit/pabal/blob/main/LICENSE-APACHE) or [MIT license](https://github.com/AbysmalBiscuit/pabal/blob/main/LICENSE-MIT) at your option.
