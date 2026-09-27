@@ -60,14 +60,15 @@ impl AnyHarness {
         let event = raw.get("hook_event_name").and_then(Value::as_str);
         let claude = event.is_some_and(|e| !matches!(e.parse(), Ok(ClaudeCodeEvent::Other(_))));
         let codex = event.is_some_and(|e| !matches!(e.parse(), Ok(CodexEvent::Other(_))));
-        if has("cursor_version") || (claude && !codex) {
+        let codex = match (claude, codex) {
+            (true, false) => false,
+            (false, true) => true,
+            _ => has("turn_id") || has("model"),
+        };
+        if has("cursor_version") || !codex {
             AnyHarness::ClaudeCode
-        } else if codex && !claude {
-            AnyHarness::Codex
-        } else if has("turn_id") || has("model") {
-            AnyHarness::Codex
         } else {
-            AnyHarness::ClaudeCode
+            AnyHarness::Codex
         }
     }
 }
