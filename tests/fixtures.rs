@@ -1,6 +1,8 @@
 use std::path::{Path, PathBuf};
 
-use pabal::{AnyHarness, AnyPayload, ClaudeCodeView, CodexView, Fields};
+use pabal::{
+    AnyHarness, AnyPayload, ClaudeCode, ClaudeCodeView, CodexView, Edit, Fields, Payload, Tool,
+};
 use serde_json::Value;
 
 fn root() -> PathBuf {
@@ -160,4 +162,69 @@ fn every_consumer_event_has_a_fixture() {
         }
     }
     assert!(missing.is_empty(), "no fixture for: {}", missing.join(", "));
+}
+
+fn kind(tool: Option<Tool>) -> String {
+    match tool {
+        None => "none".into(),
+        Some(Tool::Shell { shell, .. }) => {
+            format!("shell {}", shell.map_or("-".into(), |s| s.to_string()))
+        }
+        Some(Tool::Edit(Edit::Write { .. })) => "write".into(),
+        Some(Tool::Edit(Edit::Patch { .. })) => "patch".into(),
+        Some(Tool::Mcp { server, tool, .. }) => format!("mcp {}/{tool}", server.unwrap_or("-")),
+        Some(Tool::Other { name, .. }) => format!("other {name}"),
+    }
+}
+
+#[test]
+fn every_tool_fixture_gives_its_tool_view() {
+    let expected = [
+        ("claude-code/PermissionRequest/docs.json", "shell Bash"),
+        ("claude-code/PostToolUse/docs.json", "write"),
+        ("claude-code/PostToolUseFailure/docs.json", "shell Bash"),
+        ("claude-code/PreToolUse/bash.json", "shell Bash"),
+        ("claude-code/PreToolUse/edit.json", "write"),
+        ("claude-code/PreToolUse/fork.json", "shell Bash"),
+        (
+            "claude-code/PreToolUse/mcp.json",
+            "mcp memory/create_entities",
+        ),
+        ("claude-code/PreToolUse/notebook-edit.json", "write"),
+        ("claude-code/PreToolUse/powershell.json", "shell PowerShell"),
+        ("codex/PermissionRequest/schema.json", "shell -"),
+        ("codex/PostToolUse/schema.json", "shell -"),
+        ("codex/PreToolUse/apply-patch.json", "patch"),
+        ("codex/PreToolUse/bash.json", "shell -"),
+        ("codex/PreToolUse/mcp.json", "mcp memory/create_entities"),
+    ];
+    let mut failures = Vec::new();
+    for f in fixtures() {
+        let name = f.path.strip_prefix(root()).unwrap().display().to_string();
+        let payload = AnyPayload::parse(f.harness, &f.text).unwrap();
+        let got = kind(payload.tool());
+        let want = expected
+            .iter()
+            .find(|(path, _)| *path == name)
+            .map(|(_, k)| *k);
+        if payload.raw().get("tool_name").is_some() && want.is_none() {
+            failures.push(format!("{name}: {got}, not in the table"));
+        } else if want.is_some_and(|want| want != got) {
+            failures.push(format!("{name}: {got}"));
+        }
+    }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+#[test]
+fn the_batch_fixture_gives_its_tool_calls() {
+    let text = std::fs::read_to_string(root().join("claude-code/PostToolBatch/docs.json")).unwrap();
+    let payload = Payload::<ClaudeCode>::parse(&text).unwrap();
+    let calls: Vec<String> = payload
+        .post_tool_batch()
+        .unwrap()
+        .tool_calls()
+        .map(|call| kind(Some(call.tool)))
+        .collect();
+    assert_eq!(calls, ["other Read", "other Read"]);
 }
