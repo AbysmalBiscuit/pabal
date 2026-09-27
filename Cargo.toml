@@ -9,7 +9,7 @@ repository = "https://github.com/AbysmalBiscuit/pabal"
 keywords = ["hooks", "claude-code", "codex", "agents"]
 categories = ["development-tools", "parser-implementations"]
 readme = "README.md"
-exclude = ["/.github", "/docs", "/scripts"]
+exclude = ["/.github", "/.release-please-manifest.json", "/docs", "/release-please-config.json", "/scripts"]
 
 [features]
 clap = ["dep:clap"]
