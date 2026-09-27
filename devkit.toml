@@ -1,0 +1,10 @@
+#:schema https://github.com/AbysmalBiscuit/devkit/releases/latest/download/devkit-config.json
+
+[defaults]
+baseline_ref = "origin/main"
+pr_create_state = "ready"
+
+# A globally exported LINEAR_API_KEY would otherwise make detection resolve
+# Linear for this project, which has nothing in Linear.
+[tracker]
+kind = "github"
