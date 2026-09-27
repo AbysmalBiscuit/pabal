@@ -130,10 +130,12 @@ fn every_consumer_event_has_a_fixture() {
             "PostToolUseFailure",
             "PostToolBatch",
             "PermissionRequest",
+            "PermissionDenied",
             "SessionEnd",
             "SubagentStart",
             "SubagentStop",
             "Stop",
+            "StopFailure",
             "PreCompact",
             "PostCompact",
             "Notification",
@@ -185,6 +187,7 @@ fn kind(tool: Option<Tool>) -> String {
 #[test]
 fn every_tool_fixture_gives_its_tool_view() {
     let expected = [
+        ("claude-code/PermissionDenied/docs.json", "shell Bash"),
         ("claude-code/PermissionRequest/docs.json", "shell Bash"),
         ("claude-code/PostToolUse/docs.json", "write"),
         ("claude-code/PostToolUseFailure/docs.json", "shell Bash"),
