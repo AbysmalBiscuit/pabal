@@ -51,6 +51,17 @@ fn fixtures() -> Vec<Fixture> {
     out
 }
 
+/// The fixture's path under the corpus root, `/`-separated on every platform.
+fn name(path: &Path) -> String {
+    let parts: Vec<_> = path
+        .strip_prefix(root())
+        .unwrap()
+        .iter()
+        .map(|c| c.to_str().unwrap())
+        .collect();
+    parts.join("/")
+}
+
 fn is_ambiguous(path: &Path) -> bool {
     path.file_name()
         .unwrap()
@@ -70,7 +81,7 @@ fn is_other(payload: &AnyPayload) -> bool {
 fn every_fixture_parses_infers_and_narrows() {
     let mut failures = Vec::new();
     for f in fixtures() {
-        let name = f.path.strip_prefix(root()).unwrap().display().to_string();
+        let name = name(&f.path);
         let payload = match AnyPayload::parse(f.harness, &f.text) {
             Ok(p) => p,
             Err(e) => {
@@ -194,7 +205,7 @@ fn every_tool_fixture_gives_its_tool_view() {
     ];
     let mut failures = Vec::new();
     for f in fixtures() {
-        let name = f.path.strip_prefix(root()).unwrap().display().to_string();
+        let name = name(&f.path);
         let payload = AnyPayload::parse(f.harness, &f.text).unwrap();
         let got = kind(payload.tool());
         let want = expected
