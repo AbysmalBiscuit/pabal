@@ -51,12 +51,12 @@ pub enum AnyHarness {
 impl AnyHarness {
     /// Guesses the harness. `cursor_version` (Cursor running a Claude Code
     /// hook) means Claude Code, then an event only one harness sends decides,
-    /// then `turn_id` or `model` means Codex.
+    /// then `turn_id` or `model` means Codex. A null field counts as absent.
     ///
     /// Misreads Codex `SessionEnd` (neither field) as Claude Code, and Claude
     /// Code `SessionStart` with `model` as Codex. Prefer an explicit harness.
     pub fn infer(raw: &Value) -> AnyHarness {
-        let has = |key| raw.get(key).is_some();
+        let has = |key| raw.get(key).is_some_and(|v| !v.is_null());
         let event = raw.get("hook_event_name").and_then(Value::as_str);
         let claude = event.is_some_and(|e| !matches!(e.parse(), Ok(ClaudeCodeEvent::Other(_))));
         let codex = event.is_some_and(|e| !matches!(e.parse(), Ok(CodexEvent::Other(_))));
@@ -178,6 +178,17 @@ mod tests {
         assert_eq!(AnyHarness::infer(&message), AnyHarness::ClaudeCode);
         let interrupt = json!({"hook_event_name": "Interrupt", "session_id": "s"});
         assert_eq!(AnyHarness::infer(&interrupt), AnyHarness::Codex);
+    }
+
+    #[test]
+    fn null_fields_count_as_absent() {
+        let p = json!({
+            "hook_event_name": "PreToolUse", "session_id": "s",
+            "model": null, "turn_id": null, "cursor_version": null
+        });
+        assert_eq!(AnyHarness::infer(&p), AnyHarness::ClaudeCode);
+        let p = json!({"hook_event_name": "PreToolUse", "turn_id": "t", "cursor_version": null});
+        assert_eq!(AnyHarness::infer(&p), AnyHarness::Codex);
     }
 
     #[test]
