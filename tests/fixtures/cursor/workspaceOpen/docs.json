@@ -1,6 +1,6 @@
 {
   "hook_event_name": "workspaceOpen",
-  "cursor_version": "1.7.2",
+  "cursor_version": "2026.09.26-dd393fe",
   "workspace_roots": [
     "/project"
   ],

@@ -126,7 +126,7 @@ pub enum AnyPayload { ClaudeCode(Payload<ClaudeCode>), Codex(Payload<Codex>) }
 Both paths exist, and the explicit one wins:
 
 1. **Explicit.** The consumer names the harness (typically a `--harness` flag in its hook manifest) and parses with `Payload::<Codex>::parse(stdin)` or `AnyPayload::parse(AnyHarness::Codex, stdin)`.
-2. **Inferred.** `AnyHarness::infer(&raw)` reads positive evidence each harness sends, extracted from devkit's `infer_harness`. `conversationId` (camelCase) means Antigravity. A Cursor event name means Cursor, and so does any camelCase event with `cursor_version`. A PascalCase event with `cursor_version` comes from Cursor running a hook configured for Claude Code (see Cursor), and reads as Claude Code. Otherwise an event only one harness sends decides, then `turn_id` or `model` means Codex, and anything else is Claude Code.
+2. **Inferred.** `AnyHarness::infer(&raw)` reads positive evidence each harness sends, extracted from devkit's `infer_harness`. `conversationId` (camelCase) means Antigravity. A Cursor event name means Cursor, and so does any camelCase event with `cursor_version`. A PascalCase event with `cursor_version` reads as Claude Code: Cursor's docs say it sends Claude's event names to hooks configured for Claude Code, although the Cursor CLI sends them its own payload (see Cursor). Otherwise an event only one harness sends decides, then `turn_id` or `model` means Codex, and anything else is Claude Code.
 
 Inference is best-effort, and its docs name the two payload shapes it gets wrong. Codex `SessionEnd` carries neither `turn_id` nor `model` (its input schema requires only `cwd`, `hook_event_name`, `reason`, `session_id`, `transcript_path`), so it infers as Claude Code. Claude Code `SessionStart` sometimes carries `model`, so it infers as Codex. Consumers whose manifests can pass `--harness` should.
 
@@ -259,8 +259,8 @@ Per-harness mapping (the tables live in `tool.rs`):
 
 | Variant | Claude Code | Codex | Cursor |
 |---|---|---|---|
-| `Shell` | `Bash`, `PowerShell` with `tool_input.command`; `cwd` from the payload | `Bash` (from `exec_command`) with `tool_input.command`. The hook input is `{command}` only (plus an optional `description`); `exec_command`'s own `workdir` argument is not passed, so `cwd` is the payload's `cwd` and misses a command run with a different `workdir`. | `Shell` with `tool_input.command`; `cwd` is `tool_input.working_directory`, else the payload's `cwd`. `beforeShellExecution` and `afterShellExecution` with top-level `command` and `cwd`. |
-| `Edit::Write` | `Write`, `Edit`, `MultiEdit` with `tool_input.file_path`; `NotebookEdit` with `tool_input.notebook_path` | none | `Write` with `tool_input.file_path` (unverified, see Cursor) |
+| `Shell` | `Bash`, `PowerShell` with `tool_input.command`; `cwd` from the payload | `Bash` (from `exec_command`) with `tool_input.command`. The hook input is `{command}` only (plus an optional `description`); `exec_command`'s own `workdir` argument is not passed, so `cwd` is the payload's `cwd` and misses a command run with a different `workdir`. | `Shell` with `tool_input.command`; `cwd` is `tool_input.cwd`, else the payload's `cwd`. `beforeShellExecution` and `afterShellExecution` with top-level `command` and `cwd`. |
+| `Edit::Write` | `Write`, `Edit`, `MultiEdit` with `tool_input.file_path`; `NotebookEdit` with `tool_input.notebook_path` | none | `Write` with `tool_input.file_path`. The CLI has no separate edit tool, so every edit is a `Write`. |
 | `Edit::Patch` | none | `apply_patch` with `tool_input.command` = raw patch | none |
 | `Mcp` | `mcp__<server>__<tool>`; `server` from the `mcp_server.name` object when present, else split from the name | `mcp__<server>__<tool>` | `beforeMCPExecution` and `afterMCPExecution`: `tool_name` with `server` from `mcp_server_name`, `input` the JSON string Cursor sends. `MCP:<tool>` on `preToolUse`, with no server. |
 | `Other` | everything else | everything else | everything else, including `Read`, `Grep`, `Delete`, `Task` |
@@ -275,7 +275,7 @@ MCP names split at the first `__` after `mcp__`, so `mcp__srv__do__thing` is ser
 - Only an unprefixed `*** <Verb>: <path>` line counts. Patch body lines start with `+`, `-` or a space, so a body line that adds `*** Update File: x` is never read as a header.
 - `Add File`, `Update File` and `Delete File` name a path. `Move to` names one only directly after an `Update File` line.
 
-`Tool` and `Edit` are not `#[non_exhaustive]`, matching events. There is no `Read` variant in v0.1.0: Codex has no text-file read tool (only `view_image`) and reads through `Bash`, so a `Read` variant would silently miss every Codex read. It can be added when a consumer needs it, documented as Claude only. There is no `Edit::Delete` either: Claude Code and Codex have no delete tool (Codex deletes inside a patch), and Cursor's `Delete` input shape is undocumented, so it is `Other` until a real payload shows it.
+`Tool` and `Edit` are not `#[non_exhaustive]`, matching events. There is no `Read` variant in v0.1.0: Codex has no text-file read tool (only `view_image`) and reads through `Bash`, so a `Read` variant would silently miss every Codex read. It can be added when a consumer needs it, documented as Claude only. There is no `Edit::Delete` either: Claude Code and Codex have no delete tool (Codex deletes inside a patch), and Cursor's `Delete` (`tool_input.file_path`) stays `Other` until a consumer needs it.
 
 Claude's `PostToolBatch` carries several tool calls. Its view has `tool_calls()`, an iterator of `ToolCall<'_> { tool_use_id: Option<&str>, tool: Tool<'_>, response: Option<&Value> }` read from `tool_calls[]`. `payload.tool()` is `None` on it.
 
@@ -314,9 +314,9 @@ Cursor answers with top-level fields instead of `hookSpecificOutput`:
 
 | Trait | Cursor events | Envelope |
 |---|---|---|
-| `Deny` | `preToolUse`, `beforeShellExecution`, `beforeMCPExecution` | `{"permission": "deny", "agent_message": reason}`. `agent_message` reaches the agent; `user_message` would reach only the user. |
-| `Ask` | `beforeShellExecution`, `beforeMCPExecution` | `{"permission": "ask", "user_message": reason}`. Cursor accepts `ask` on `preToolUse` but does not enforce it, so `preToolUse` has no `Ask`. |
-| `AddContext` | `sessionStart`, `postToolUse` | `{"additional_context": text}` |
+| `Deny` | `preToolUse`, `beforeShellExecution`, `beforeMCPExecution` | `{"permission": "deny", "user_message": reason, "agent_message": reason}`. The CLI reads only `user_message` and passes it to the agent; hooks Cursor's server runs also read `agent_message`. |
+| `Ask` | `beforeShellExecution` | The same envelope with `"permission": "ask"`, which forces the approval prompt and shows `user_message`. The CLI accepts `ask` on `preToolUse` and `beforeMCPExecution` but ignores it, so neither has `Ask`. |
+| `AddContext` | `sessionStart`, `preToolUse`, `postToolUse` | `{"additional_context": text}`. Cursor drops text longer than 10,000 characters. |
 
 devkit sends `continue: true` beside a Cursor deny, copied from Cursor's shell examples. `pabal` does not: Cursor's `preToolUse` schema does not list it, and a response that does not match a permission hook's schema blocks the action.
 
@@ -400,23 +400,27 @@ Each consumer migration is a separate issue in its own repo, after v0.1.0 is pub
 
 ## Cursor
 
-Cursor is the first harness added after v0.1.0: a `Cursor` type, `CursorEvent`, `CursorView`, `AnyHarness::Cursor`, and Cursor columns in the tables above. Its facts come from the [Cursor hooks reference](https://cursor.com/docs/hooks.md), read 2026-09-27, and devkit's Cursor tests. The fixtures under `tests/fixtures/cursor/` are built from that reference, not captured, so these points stay unverified until a real payload confirms them:
+Cursor is the first harness added after v0.1.0: a `Cursor` type, `CursorEvent`, `CursorView`, `AnyHarness::Cursor`, and Cursor columns in the tables above. Its facts come from the [Cursor hooks reference](https://cursor.com/docs/hooks.md) and the bundled source of the Cursor CLI (`cursor-agent` 2026.09.26-dd393fe), both read 2026-09-27. The fixtures under `tests/fixtures/cursor/` are built from the reference and corrected against the CLI source; none is a captured payload.
 
-- `Write` and `Delete` `tool_input`. The reference never shows either. `Write` maps through `tool_input.file_path`, the key Cursor's own `afterFileEdit` and `beforeReadFile` use; a payload without it is `Other`.
-- Whether `preToolUse` names MCP tools `MCP:<tool>`, as its matcher does, or by the bare tool name.
-- Which ids a subagent's own tool events carry. The reference shows `subagent_id` and `parent_conversation_id` only on `subagentStart`.
+What the CLI source settles:
 
-What the reference leaves to the caller:
+- **Tool input.** `Shell` is `{command, cwd, timeout?}`, with `cwd` also at the top level. `Write` is `{file_path, content}`, `Delete` and `Read` are `{file_path}`.
+- **MCP naming.** `preToolUse` names MCP tools `MCP:<tool>`, with no server field. Only `beforeMCPExecution` and `afterMCPExecution` carry `mcp_server_name`, beside the bare tool name.
+- **Ids.** `tool_use_id` is a random UUID for Shell and MCP calls, so it does not match the model's tool-call id. A subagent's tool events carry no subagent id; `subagent_id` appears only on `subagentStart` and `subagentStop`.
 
-- **Failure mode.** Exit 2 denies. Crashes, timeouts and other non-zero exits fail open unless the hook sets `failClosed: true`. A permission hook's invalid JSON, or a response that does not match its schema, blocks the action.
-- **Claude hooks under Cursor.** Cursor runs hooks configured for Claude Code (`~/.claude/settings.json`, project `.claude/settings.json`, on by default) and sends them Claude's event names for PreToolUse, PostToolUse, UserPromptSubmit, Stop, SubagentStop, SessionStart, SessionEnd and PreCompact, with `cursor_version` set ([third-party hooks docs](https://cursor.com/docs/reference/third-party-hooks)). It accepts Claude's `hookSpecificOutput` responses there. Those payloads parse as Claude Code.
-- **Unmodeled responses.** `updated_input` on `preToolUse`, `followup_message` on `stop` and `subagentStop`, `continue: false` on `beforeSubmitPrompt`, deny on `beforeReadFile`, `beforeTabFileRead` and `subagentStart`, and `additional_context` on `postToolUseFailure` have no consumer yet, so they have no trait.
+The Cursor IDE is separate code from the CLI and is unverified.
+
+What the CLI leaves to the caller:
+
+- **Failure mode.** Exit 2 denies, with stdout or stderr as the message. Other non-zero exits, an empty stdout and timeouts (60 seconds by default) fail open unless the hook sets `failClosed: true`. A permission hook's invalid JSON, or a response that does not match its schema, blocks the action.
+- **Claude hooks under Cursor.** The CLI runs hooks configured for Claude Code (`~/.claude/settings.json`, the project's `.claude/settings.json` and `.claude/settings.local.json`), mapping Claude's event names onto its own, and sends them the same camelCase payload as its own hooks, so they parse as Cursor. It reads a Claude `hookSpecificOutput` response back, with `permissionDecisionReason` as `user_message`. The [third-party hooks docs](https://cursor.com/docs/reference/third-party-hooks) say Cursor sends Claude's event names instead, so a PascalCase event with `cursor_version` still reads as Claude Code.
+- **Unmodeled responses.** `updated_input` on `preToolUse`, `updated_mcp_tool_output` on `postToolUse`, `env` on `sessionStart`, `followup_message` on `stop` and `subagentStop`, `continue: false` on `beforeSubmitPrompt`, deny on `beforeReadFile` and `subagentStart`, and `additional_context` on `postToolUseFailure` have no consumer yet, so they have no trait.
 
 ## Antigravity
 
-Google Antigravity is the second harness added after v0.1.0: an `Antigravity` type, `AntigravityEvent`, `AntigravityView` and `AnyHarness::Antigravity`. Its facts come from the [Antigravity hooks docs](https://antigravity.google/docs/hooks.md), read 2026-09-27. The fixtures under `tests/fixtures/antigravity/` are the docs' examples, not captured payloads.
+Google Antigravity is the second harness added after v0.1.0: an `Antigravity` type, `AntigravityEvent`, `AntigravityView` and `AnyHarness::Antigravity`. Its facts come from the [Antigravity hooks docs](https://antigravity.google/docs/hooks.md), read 2026-09-27. The fixtures under `tests/fixtures/antigravity/` are payloads captured from the Antigravity CLI (`agy` 1.2.12), with paths anonymized, and the responses below were tried against it.
 
-**The event is not in the payload.** The docs list every stdin field per event, and none names the event. A hook command learns its event from its own `hooks.json` entry instead, for example `my-hook --event PreToolUse`, and passes it to `Payload::parse_named(event, stdin)` or `AnyPayload::parse_named(harness, event, stdin)`. A `hook_event_name` in the payload still wins, so a harness that sends one reads the same either way, and `raw()` stays the payload as sent. Payloads cannot stand in for the name: `PreInvocation` and `PostInvocation` carry identical fields.
+**The event is not in the payload.** No stdin field names the event, and the only environment variable Antigravity sets for a hook is `ANTIGRAVITY_CONVERSATION_ID`. A hook command learns its event from its own `hooks.json` entry instead, for example `my-hook --event PreToolUse`, and passes it to `Payload::parse_named(event, stdin)` or `AnyPayload::parse_named(harness, event, stdin)`. A `hook_event_name` in the payload still wins, so a harness that sends one reads the same either way, and `raw()` stays the payload as sent. Payloads cannot stand in for the name: `PreInvocation` and `PostInvocation` carry identical fields.
 
 **Fields.** The payload is camelCase. `session_id()` reads `conversationId` and `transcript_path()` reads `transcriptPath`. There is no top-level `cwd`, subagent id or tool-use id, so `cwd()`, `agent_id()`, `agent()` and `tool_use_id()` are `None`; `workspacePaths`, `stepIdx` and the rest stay in `raw()`.
 
@@ -430,15 +434,16 @@ Google Antigravity is the second harness added after v0.1.0: an `Antigravity` ty
 | `Edit::Write` | `write_to_file`, `replace_file_content`, `multi_replace_file_content` with `args.TargetFile` |
 | `Other` | everything else, with `args` as `input`. The docs name no MCP tools. |
 
-**Responses.** `PreToolUse` answers with `decision` and an optional `reason`:
+**Responses.** `PreToolUse` answers with `decision` and `reason`:
 
 | Trait | Envelope |
 |---|---|
-| `Deny` | `{"decision": "deny", "reason": reason}` |
-| `Ask` | `{"decision": "ask", "reason": reason}` |
-| `Allow` | `{"decision": "allow"}`, which the docs describe as allowing without a prompt |
+| `Deny` | `{"decision": "deny", "reason": reason}`. The agent sees the reason. |
+| `Ask` | `{"decision": "ask", "reason": reason}`. Antigravity shows its approval prompt with the reason. |
 
-`force_ask`, `deny_unless_prior_grant`, `permissionOverrides`, `injectSteps`, `terminationBehavior` and `Stop`'s `decision: "continue"` have no consumer yet, so they have no trait. The docs mark `decision` required on `PreToolUse` and say nothing about exit codes or about an empty stdout, so whether `Response::none()` counts as no opinion there is unverified. `PostToolUse` has no response fields, so `AnyPostToolUse::add_context` returns `None` for Antigravity.
+`force_ask`, `deny_unless_prior_grant`, `permissionOverrides`, `injectSteps`, `terminationBehavior` and `Stop`'s `decision: "continue"` have no consumer yet, so they have no trait. `allow` has no trait either: the docs say it allows without a prompt, but the CLI still shows its approval prompt after `allow`, with or without `permissionOverrides`. `PostToolUse` has no response fields, so `AnyPostToolUse::add_context` returns `None` for Antigravity.
+
+**Failure mode.** An empty stdout is no opinion: the tool falls through to Antigravity's own approval policy, so `Response::none()` is safe. Any non-zero exit, and stdout that is not JSON, block the tool with an error the agent sees, so a hook that crashes on Antigravity blocks every tool call.
 
 ## Setup
 

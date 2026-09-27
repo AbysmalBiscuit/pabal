@@ -15,8 +15,8 @@ use crate::{
 
 /// Cursor, running hooks from its own `hooks.json`.
 ///
-/// Cursor also runs hooks configured for Claude Code and sends them Claude
-/// Code's payloads; parse those as [`ClaudeCode`](crate::ClaudeCode).
+/// The Cursor CLI also runs hooks configured for Claude Code and sends them
+/// this same camelCase payload, so they parse as Cursor too.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct Cursor;
 
@@ -50,8 +50,8 @@ impl Harness for Cursor {
         }
         let known = match name {
             "Shell" => {
-                let working_directory = text(input, "working_directory").map(Path::new);
-                Tool::shell(input, "command", working_directory.or(cwd), None)
+                let shell_cwd = text(input, "cwd").map(Path::new);
+                Tool::shell(input, "command", shell_cwd.or(cwd), None)
             }
             "Write" => Tool::write(input, "file_path"),
             _ => name.strip_prefix("MCP:").map(|tool| Tool::Mcp {

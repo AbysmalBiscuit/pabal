@@ -52,8 +52,8 @@ impl Response {
         let reason = nonblank(reason);
         match harness {
             AnyHarness::ClaudeCode | AnyHarness::Codex => permission("deny", Some(reason)),
-            AnyHarness::Cursor => cursor_permission("deny", "agent_message", reason),
-            AnyHarness::Antigravity => decision("deny", Some(reason)),
+            AnyHarness::Cursor => cursor_permission("deny", reason),
+            AnyHarness::Antigravity => decision("deny", reason),
         }
     }
 }
@@ -82,20 +82,21 @@ fn permission(decision: &str, reason: Option<&str>) -> Response {
     hook_specific("PreToolUse", fields)
 }
 
-/// Cursor's permission envelope, with `reason` in `message`: `agent_message`
-/// reaches the agent, `user_message` is shown to the user.
-fn cursor_permission(decision: &str, message: &str, reason: &str) -> Response {
-    Response(Some(json!({ "permission": decision, message: reason })))
+/// Cursor's permission envelope. The CLI reads only `user_message`, and
+/// passes it to the agent on a deny; hooks Cursor's server runs also read
+/// `agent_message`.
+fn cursor_permission(decision: &str, reason: &str) -> Response {
+    Response(Some(json!({
+        "permission": decision,
+        "user_message": reason,
+        "agent_message": reason,
+    })))
 }
 
 /// Antigravity's `PreToolUse` envelope. `reason` reaches the agent or the
 /// user, whichever the decision involves.
-fn decision(decision: &str, reason: Option<&str>) -> Response {
-    let mut fields = Map::from_iter([("decision".to_owned(), json!(decision))]);
-    if let Some(reason) = reason {
-        fields.insert("reason".to_owned(), json!(reason));
-    }
-    Response(Some(Value::Object(fields)))
+fn decision(decision: &str, reason: &str) -> Response {
+    Response(Some(json!({ "decision": decision, "reason": reason })))
 }
 
 /// Codex rejects a blank deny reason and runs the tool anyway.
@@ -114,6 +115,7 @@ fn context(event: &str, text: &str) -> Response {
     )
 }
 
+/// Cursor drops context longer than 10,000 characters.
 fn cursor_context(text: &str) -> Response {
     Response(Some(json!({ "additional_context": text })))
 }
@@ -144,9 +146,9 @@ pub trait AddContext {
 }
 
 /// Asks the user to confirm the tool call. Claude Code's and Antigravity's
-/// `PreToolUse` and Cursor's `beforeShellExecution` and `beforeMCPExecution`
-/// have it; Codex fails open on `ask`, and Cursor does not enforce it on
-/// `preToolUse`:
+/// `PreToolUse` and Cursor's `beforeShellExecution` have it; Codex fails
+/// open on `ask`, and Cursor ignores it on `preToolUse` and
+/// `beforeMCPExecution`:
 ///
 /// ```compile_fail
 /// use pabal::{Ask, Codex, Payload};
@@ -158,8 +160,9 @@ pub trait Ask {
     fn ask(&self, reason: &str) -> Response;
 }
 
-/// Allows the tool call, skipping the user's own permission prompt. Claude
-/// Code's and Antigravity's `PreToolUse` have it:
+/// Allows the tool call, skipping the user's own permission prompt. Only
+/// Claude Code's `PreToolUse` has it; Antigravity's CLI still prompts after
+/// an `allow`:
 ///
 /// ```compile_fail
 /// use pabal::{Allow, Codex, Payload};
@@ -191,13 +194,7 @@ impl Allow for PreToolUse<'_, ClaudeCode> {
 
 impl Ask for PreToolUse<'_, Antigravity> {
     fn ask(&self, reason: &str) -> Response {
-        decision("ask", Some(reason))
-    }
-}
-
-impl Allow for PreToolUse<'_, Antigravity> {
-    fn allow_skipping_prompt(&self) -> Response {
-        decision("allow", None)
+        decision("ask", reason)
     }
 }
 
@@ -207,23 +204,23 @@ impl AddContext for PostToolBatch<'_> {
     }
 }
 
-macro_rules! cursor_permission_events {
+macro_rules! cursor_deny {
     ($($view:ident),*) => {$(
         impl Deny for $view<'_> {
             fn deny(&self, reason: &str) -> Response {
                 Response::deny_pre_tool_use(AnyHarness::Cursor, reason)
             }
         }
-
-        impl Ask for $view<'_> {
-            fn ask(&self, reason: &str) -> Response {
-                cursor_permission("ask", "user_message", reason)
-            }
-        }
     )*};
 }
 
-cursor_permission_events!(BeforeShellExecution, BeforeMcpExecution);
+cursor_deny!(BeforeShellExecution, BeforeMcpExecution);
+
+impl Ask for BeforeShellExecution<'_> {
+    fn ask(&self, reason: &str) -> Response {
+        cursor_permission("ask", reason)
+    }
+}
 
 macro_rules! add_context {
     ($($view:ident),*) => {$(
@@ -249,17 +246,17 @@ add_context!(
     SubagentStart
 );
 
-impl AddContext for SessionStart<'_, Cursor> {
-    fn add_context(&self, text: &str) -> Response {
-        cursor_context(text)
-    }
+macro_rules! cursor_add_context {
+    ($($view:ident),*) => {$(
+        impl AddContext for $view<'_, Cursor> {
+            fn add_context(&self, text: &str) -> Response {
+                cursor_context(text)
+            }
+        }
+    )*};
 }
 
-impl AddContext for PostToolUse<'_, Cursor> {
-    fn add_context(&self, text: &str) -> Response {
-        cursor_context(text)
-    }
-}
+cursor_add_context!(SessionStart, PreToolUse, PostToolUse);
 
 impl AddContext for AnySessionStart<'_> {
     fn add_context(&self, text: &str) -> Response {
@@ -286,7 +283,7 @@ macro_rules! any_add_context {
 }
 
 any_add_context! {
-    AnyPreToolUse [ClaudeCode Codex] [Cursor Antigravity];
+    AnyPreToolUse [ClaudeCode Codex Cursor] [Antigravity];
     AnyPostToolUse [ClaudeCode Codex Cursor] [Antigravity];
     AnyUserPromptSubmit [ClaudeCode Codex] [Cursor];
     AnySubagentStart [ClaudeCode Codex] [Cursor];
@@ -312,8 +309,9 @@ impl AnyPreToolUse<'_> {
     pub fn allow_skipping_prompt(&self) -> Option<Response> {
         match self {
             AnyPreToolUse::ClaudeCode(v) => Some(v.allow_skipping_prompt()),
-            AnyPreToolUse::Antigravity(v) => Some(v.allow_skipping_prompt()),
-            AnyPreToolUse::Codex(_) | AnyPreToolUse::Cursor(_) => None,
+            AnyPreToolUse::Codex(_) | AnyPreToolUse::Cursor(_) | AnyPreToolUse::Antigravity(_) => {
+                None
+            }
         }
     }
 }

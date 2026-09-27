@@ -240,7 +240,11 @@ fn any_view_context_on_every_shared_context_event() {
 
 #[test]
 fn cursor_denies_with_its_permission_envelope() {
-    let expected = json!({"permission": "deny", "agent_message": "use devrun"});
+    let expected = json!({
+        "permission": "deny",
+        "user_message": "use devrun",
+        "agent_message": "use devrun",
+    });
     let pre = payload::<Cursor>("preToolUse");
     let shell = payload::<Cursor>("beforeShellExecution");
     let mcp = payload::<Cursor>("beforeMCPExecution");
@@ -254,7 +258,7 @@ fn cursor_denies_with_its_permission_envelope() {
     }
     let blank = shell.before_shell_execution().unwrap().deny(" ");
     assert!(
-        !parsed(&blank)["agent_message"]
+        !parsed(&blank)["user_message"]
             .as_str()
             .unwrap()
             .trim()
@@ -263,33 +267,26 @@ fn cursor_denies_with_its_permission_envelope() {
 }
 
 #[test]
-fn cursor_asks_on_shell_and_mcp_execution() {
-    let expected = json!({"permission": "ask", "user_message": "sure?"});
+fn cursor_asks_on_shell_execution() {
     let shell = payload::<Cursor>("beforeShellExecution");
-    let mcp = payload::<Cursor>("beforeMCPExecution");
-    assert_eq!(
-        parsed(&shell.before_shell_execution().unwrap().ask("sure?")),
-        expected
-    );
-    assert_eq!(
-        parsed(&mcp.before_mcp_execution().unwrap().ask("sure?")),
-        expected
-    );
+    let r = shell.before_shell_execution().unwrap().ask("sure?");
+    assert_eq!(parsed(&r)["permission"], "ask");
+    assert_eq!(parsed(&r)["user_message"], "sure?");
 }
 
 #[test]
 fn cursor_context_is_a_top_level_field() {
     let expected = json!({"additional_context": "x"});
     let start = payload::<Cursor>("sessionStart");
+    let pre = payload::<Cursor>("preToolUse");
     let post = payload::<Cursor>("postToolUse");
-    assert_eq!(
-        parsed(&start.session_start().unwrap().add_context("x")),
-        expected
-    );
-    assert_eq!(
-        parsed(&post.post_tool_use().unwrap().add_context("x")),
-        expected
-    );
+    for r in [
+        start.session_start().unwrap().add_context("x"),
+        pre.pre_tool_use().unwrap().add_context("x"),
+        post.post_tool_use().unwrap().add_context("x"),
+    ] {
+        assert_eq!(parsed(&r), expected);
+    }
     let p = any(AnyHarness::Cursor, "sessionStart");
     let AnyView::SessionStart(v) = p.view() else {
         panic!()
@@ -306,7 +303,10 @@ fn any_view_offers_cursor_only_what_it_honors() {
     assert_eq!(parsed(&pre.deny("no"))["permission"], "deny");
     assert_eq!(pre.ask("sure?"), None);
     assert_eq!(pre.allow_skipping_prompt(), None);
-    assert_eq!(pre.add_context("x"), None);
+    assert_eq!(
+        pre.add_context("x").map(|r| parsed(&r)),
+        Some(json!({"additional_context": "x"}))
+    );
     for event in ["beforeSubmitPrompt", "subagentStart"] {
         let p = any(AnyHarness::Cursor, event);
         let r = match p.view() {
@@ -331,10 +331,6 @@ fn antigravity_decides_with_its_decision_envelope() {
         json!({"decision": "ask", "reason": "sure?"})
     );
     assert_eq!(
-        parsed(&pre.allow_skipping_prompt()),
-        json!({"decision": "allow"})
-    );
-    assert_eq!(
         Response::deny_pre_tool_use(AnyHarness::Antigravity, "use devrun"),
         pre.deny("use devrun")
     );
@@ -347,10 +343,7 @@ fn any_view_offers_antigravity_only_what_it_honors() {
         panic!()
     };
     assert_eq!(parsed(&pre.ask("sure?").unwrap())["decision"], "ask");
-    assert_eq!(
-        parsed(&pre.allow_skipping_prompt().unwrap())["decision"],
-        "allow"
-    );
+    assert_eq!(pre.allow_skipping_prompt(), None);
     assert_eq!(pre.add_context("x"), None);
     let p = AnyPayload::parse_named(AnyHarness::Antigravity, "PostToolUse", "{}").unwrap();
     let AnyView::PostToolUse(post) = p.view() else {

@@ -89,10 +89,11 @@ pub enum AnyHarness {
 impl AnyHarness {
     /// Guesses the harness. `conversationId` means Antigravity. A Cursor
     /// event name (camelCase), or any camelCase event with `cursor_version`,
-    /// means Cursor. A PascalCase event with
-    /// `cursor_version` comes from Cursor running a Claude Code hook and means
-    /// Claude Code. Otherwise an event only one harness sends decides, then
-    /// `turn_id` or `model` means Codex. A null field counts as absent.
+    /// means Cursor. A PascalCase event with `cursor_version` means Claude
+    /// Code: Cursor's docs say it sends hooks configured for Claude Code
+    /// Claude's event names. Otherwise an event only one harness sends decides,
+    /// then `turn_id` or `model` means Codex. A null field counts as
+    /// absent.
     ///
     /// Misreads Codex `SessionEnd` (neither field) as Claude Code, and Claude
     /// Code `SessionStart` with `model` as Codex. Prefer an explicit harness.

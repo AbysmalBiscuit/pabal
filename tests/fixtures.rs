@@ -220,8 +220,9 @@ fn kind(tool: Option<Tool>) -> String {
 #[test]
 fn every_tool_fixture_gives_its_tool_view() {
     let expected = [
-        ("antigravity/PostToolUse/docs.json", "shell -"),
-        ("antigravity/PreToolUse/docs.json", "shell -"),
+        ("antigravity/PostToolUse/run-command.json", "shell -"),
+        ("antigravity/PreToolUse/replace-file-content.json", "write"),
+        ("antigravity/PreToolUse/run-command.json", "shell -"),
         ("antigravity/PreToolUse/write-to-file.json", "write"),
         ("claude-code/PermissionDenied/docs.json", "shell Bash"),
         ("claude-code/PermissionRequest/docs.json", "shell Bash"),
@@ -253,7 +254,7 @@ fn every_tool_fixture_gives_its_tool_view() {
         ("cursor/beforeShellExecution/docs.json", "shell -"),
         ("cursor/postToolUse/docs.json", "shell -"),
         ("cursor/postToolUseFailure/docs.json", "shell -"),
-        ("cursor/preToolUse/docs.json", "shell -"),
+        ("cursor/preToolUse/shell.json", "shell -"),
     ];
     let mut failures = Vec::new();
     for f in fixtures() {

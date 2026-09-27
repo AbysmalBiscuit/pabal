@@ -3,7 +3,7 @@
   "generation_id": "490b90b7-a2ce-4c2c-bb76-cb77b125df2f",
   "model": "claude-opus-4-7-thinking-max",
   "hook_event_name": "preToolUse",
-  "cursor_version": "1.7.2",
+  "cursor_version": "2026.09.26-dd393fe",
   "workspace_roots": [
     "/project"
   ],
@@ -12,24 +12,9 @@
   "tool_name": "Shell",
   "tool_input": {
     "command": "npm install",
-    "working_directory": "/project"
+    "cwd": "/project/app",
+    "timeout": 30000
   },
   "tool_use_id": "abc123",
-  "cwd": "/project",
-  "model_id": "claude-opus-4-7",
-  "model_params": [
-    {
-      "id": "thinking",
-      "value": "true"
-    },
-    {
-      "id": "context",
-      "value": "1m"
-    },
-    {
-      "id": "effort",
-      "value": "max"
-    }
-  ],
-  "agent_message": "Installing dependencies..."
+  "cwd": "/project/app"
 }

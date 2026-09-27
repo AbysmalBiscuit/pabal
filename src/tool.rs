@@ -565,10 +565,10 @@ mod tests {
     }
 
     #[test]
-    fn cursor_shell_runs_in_its_working_directory() {
+    fn cursor_shell_runs_in_its_tool_input_cwd() {
         let p = cursor(json!({
             "hook_event_name": "preToolUse", "tool_name": "Shell", "cwd": "/project",
-            "tool_input": {"command": "npm install", "working_directory": "/project/web"}
+            "tool_input": {"command": "npm install", "cwd": "/project/web"}
         }));
         assert_eq!(
             p.tool(),
