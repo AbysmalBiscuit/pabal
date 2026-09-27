@@ -1,5 +1,4 @@
-use std::marker::PhantomData;
-use std::path::Path;
+use std::{marker::PhantomData, path::Path};
 
 use serde_json::Value;
 
@@ -60,7 +59,8 @@ pub trait Fields {
     fn harness(&self) -> AnyHarness;
     /// The event in its harness-independent form.
     fn any_event(&self) -> AnyEvent;
-    /// The `hook_event_name` as sent, including events this crate does not know.
+    /// The `hook_event_name` as sent, including events this crate does not
+    /// know.
     fn event_name(&self) -> String;
     /// The `session_id`.
     fn session_id(&self) -> Option<&str>;
@@ -86,33 +86,43 @@ impl<H: Harness> Fields for Payload<H> {
     fn harness(&self) -> AnyHarness {
         H::KIND
     }
+
     fn any_event(&self) -> AnyEvent {
         self.event.to_any()
     }
+
     fn event_name(&self) -> String {
         self.event.to_string()
     }
+
     fn session_id(&self) -> Option<&str> {
         text(&self.raw, "session_id")
     }
+
     fn cwd(&self) -> Option<&Path> {
         text(&self.raw, "cwd").map(Path::new)
     }
+
     fn transcript_path(&self) -> Option<&Path> {
         text(&self.raw, "transcript_path").map(Path::new)
     }
+
     fn agent_id(&self) -> Option<&str> {
         text(&self.raw, "agent_id")
     }
+
     fn agent(&self) -> Option<&str> {
         text(&self.raw, "agent_type").and(text(&self.raw, "agent_id"))
     }
+
     fn tool_use_id(&self) -> Option<&str> {
         text(&self.raw, "tool_use_id")
     }
+
     fn tool(&self) -> Option<Tool<'_>> {
         H::tool(&self.raw, self.cwd())
     }
+
     fn raw(&self) -> &Value {
         &self.raw
     }

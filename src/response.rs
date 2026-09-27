@@ -5,11 +5,13 @@ use std::fmt;
 
 use serde_json::{Map, Value, json};
 
-use crate::view::{
-    AnyPostToolUse, AnyPreToolUse, AnySessionStart, AnySubagentStart, AnyUserPromptSubmit,
-    PostToolBatch, PostToolUse, PreToolUse, SessionStart, SubagentStart, UserPromptSubmit,
+use crate::{
+    AnyHarness, ClaudeCode, Harness,
+    view::{
+        AnyPostToolUse, AnyPreToolUse, AnySessionStart, AnySubagentStart, AnyUserPromptSubmit,
+        PostToolBatch, PostToolUse, PreToolUse, SessionStart, SubagentStart, UserPromptSubmit,
+    },
 };
-use crate::{AnyHarness, ClaudeCode, Harness};
 
 /// What a hook writes to stdout: a JSON object, or nothing.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -36,7 +38,10 @@ impl Response {
     /// ```
     /// use pabal::{AnyHarness, Response};
     /// let r = Response::deny_pre_tool_use(AnyHarness::Codex, "stdin was not JSON");
-    /// assert_eq!(r.json().unwrap()["hookSpecificOutput"]["permissionDecision"], "deny");
+    /// assert_eq!(
+    ///     r.json().unwrap()["hookSpecificOutput"]["permissionDecision"],
+    ///     "deny"
+    /// );
     /// ```
     pub fn deny_pre_tool_use(harness: AnyHarness, reason: &str) -> Self {
         match harness {

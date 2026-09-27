@@ -3,13 +3,16 @@ use std::path::Path;
 use serde_json::Value;
 
 use super::{AnyHarness, Harness, sealed};
-use crate::payload::text;
-use crate::tool::input;
-use crate::view::{
-    ClaudeCodeView, PermissionRequest, PostCompact, PostToolBatch, PostToolUse, PreCompact,
-    PreToolUse, Raw, SessionEnd, SessionStart, Stop, SubagentStart, SubagentStop, UserPromptSubmit,
+use crate::{
+    ClaudeCodeEvent, Payload, ShellKind, Tool,
+    payload::text,
+    tool::input,
+    view::{
+        ClaudeCodeView, PermissionRequest, PostCompact, PostToolBatch, PostToolUse, PreCompact,
+        PreToolUse, Raw, SessionEnd, SessionStart, Stop, SubagentStart, SubagentStop,
+        UserPromptSubmit,
+    },
 };
-use crate::{ClaudeCodeEvent, Payload, ShellKind, Tool};
 
 /// Claude Code.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -18,8 +21,10 @@ pub struct ClaudeCode;
 impl sealed::Sealed for ClaudeCode {}
 
 impl Harness for ClaudeCode {
-    const KIND: AnyHarness = AnyHarness::ClaudeCode;
     type Event = ClaudeCodeEvent;
+    type View<'a> = ClaudeCodeView<'a>;
+
+    const KIND: AnyHarness = AnyHarness::ClaudeCode;
 
     fn tool<'a>(call: &'a Value, cwd: Option<&'a Path>) -> Option<Tool<'a>> {
         let name = text(call, "tool_name")?;
@@ -36,8 +41,6 @@ impl Harness for ClaudeCode {
         };
         Some(known.unwrap_or(Tool::Other { name, input }))
     }
-
-    type View<'a> = ClaudeCodeView<'a>;
 
     fn view(payload: &Payload<Self>) -> ClaudeCodeView<'_> {
         match payload.event() {

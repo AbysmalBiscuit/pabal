@@ -1,6 +1,6 @@
-use serde_json::Value;
-
 use std::path::Path;
+
+use serde_json::Value;
 
 use crate::{ClaudeCodeEvent, CodexEvent, EventKind, Payload, Tool};
 
@@ -84,8 +84,9 @@ impl AnyHarness {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use serde_json::json;
+
+    use super::*;
 
     #[test]
     fn names_round_trip() {

@@ -3,13 +3,15 @@ use std::path::Path;
 use serde_json::Value;
 
 use super::{AnyHarness, Harness, sealed};
-use crate::payload::text;
-use crate::tool::input;
-use crate::view::{
-    CodexView, PermissionRequest, PostCompact, PostToolUse, PreCompact, PreToolUse, Raw,
-    SessionEnd, SessionStart, Stop, SubagentStart, SubagentStop, UserPromptSubmit,
+use crate::{
+    CodexEvent, Payload, Tool,
+    payload::text,
+    tool::input,
+    view::{
+        CodexView, PermissionRequest, PostCompact, PostToolUse, PreCompact, PreToolUse, Raw,
+        SessionEnd, SessionStart, Stop, SubagentStart, SubagentStop, UserPromptSubmit,
+    },
 };
-use crate::{CodexEvent, Payload, Tool};
 
 /// OpenAI Codex.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -18,8 +20,10 @@ pub struct Codex;
 impl sealed::Sealed for Codex {}
 
 impl Harness for Codex {
-    const KIND: AnyHarness = AnyHarness::Codex;
     type Event = CodexEvent;
+    type View<'a> = CodexView<'a>;
+
+    const KIND: AnyHarness = AnyHarness::Codex;
 
     fn tool<'a>(call: &'a Value, cwd: Option<&'a Path>) -> Option<Tool<'a>> {
         let name = text(call, "tool_name")?;
@@ -33,8 +37,6 @@ impl Harness for Codex {
         };
         Some(known.unwrap_or(Tool::Other { name, input }))
     }
-
-    type View<'a> = CodexView<'a>;
 
     fn view(payload: &Payload<Self>) -> CodexView<'_> {
         match payload.event() {

@@ -51,7 +51,9 @@ impl Edit<'_> {
     ///
     /// ```
     /// let patch = "*** Begin Patch\n*** Add File: a.rs\n+x\n*** End Patch";
-    /// assert_eq!(pabal::Edit::Patch { patch }.paths(), [std::path::Path::new("a.rs")]);
+    /// assert_eq!(pabal::Edit::Patch { patch }.paths(), [
+    ///     std::path::Path::new("a.rs")
+    /// ]);
     /// ```
     pub fn paths(&self) -> Vec<PathBuf> {
         match self {
@@ -195,9 +197,10 @@ fn patch_paths(envelope: &str) -> Vec<&str> {
 
 #[cfg(test)]
 mod tests {
+    use serde_json::json;
+
     use super::*;
     use crate::{AnyHarness, AnyPayload, ClaudeCode, Codex, Fields, Payload};
-    use serde_json::json;
 
     fn claude(v: Value) -> Payload<ClaudeCode> {
         Payload::from_value(v).unwrap()

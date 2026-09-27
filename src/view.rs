@@ -5,9 +5,9 @@ use std::ops::Deref;
 
 use serde_json::Value;
 
-use crate::payload::text;
 use crate::{
     AnyEvent, AnyPayload, ClaudeCode, Codex, EventKind, Fields, Harness, Payload, ToolCall,
+    payload::text,
 };
 
 /// A view of an event this crate does not model; the payload is all it has.
@@ -16,6 +16,7 @@ pub struct Raw<'a, H: Harness>(pub(crate) &'a Payload<H>);
 
 impl<H: Harness> Deref for Raw<'_, H> {
     type Target = Payload<H>;
+
     fn deref(&self) -> &Payload<H> {
         self.0
     }
@@ -113,6 +114,7 @@ pub struct PostToolBatch<'a>(pub(crate) &'a Payload<ClaudeCode>);
 
 impl Deref for PostToolBatch<'_> {
     type Target = Payload<ClaudeCode>;
+
     fn deref(&self) -> &Payload<ClaudeCode> {
         self.0
     }
@@ -140,7 +142,8 @@ impl<'a> PostToolBatch<'a> {
 }
 
 impl Payload<ClaudeCode> {
-    /// This payload as `PostToolBatch`, if it is one. Only Claude Code sends it:
+    /// This payload as `PostToolBatch`, if it is one. Only Claude Code sends
+    /// it:
     ///
     /// ```
     /// use pabal::{ClaudeCode, Payload};
