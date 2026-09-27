@@ -1,0 +1,12 @@
+{
+  "session_id": "a5fb9931-3939-420d-ac68-77eb6f168eb8",
+  "transcript_path": "/home/user/.claude/projects/-home-user-project/a5fb9931-3939-420d-ac68-77eb6f168eb8.jsonl",
+  "cwd": "/home/user/project",
+  "prompt_id": "f06a06dc-5492-49da-899a-5b37210209b8",
+  "effort": {
+    "level": "high"
+  },
+  "hook_event_name": "StopFailure",
+  "error": "model_not_found",
+  "last_assistant_message": "There's an issue with the selected model (claude-does-not-exist-1). It may not exist or you may not have access to it. Run --model to pick a different model."
+}
