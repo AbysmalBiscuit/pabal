@@ -3,11 +3,7 @@
 use pabal::{ClaudeCodeEvent, CodexEvent, EventKind};
 
 fn names<E: EventKind>() -> Vec<String> {
-    // `Other` iterates with an empty name.
-    let mut names: Vec<String> = E::iter()
-        .map(|e| e.to_string())
-        .filter(|name| !name.is_empty())
-        .collect();
+    let mut names: Vec<String> = E::known().iter().map(|e| e.to_string()).collect();
     names.sort();
     names
 }

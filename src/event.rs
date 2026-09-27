@@ -1,9 +1,10 @@
 use std::fmt::{Debug, Display};
 
 /// A harness's event enum, parsed from and displayed as `hook_event_name`.
-pub trait EventKind:
-    Clone + Debug + PartialEq + Eq + Display + for<'s> From<&'s str> + strum::IntoEnumIterator
-{
+pub trait EventKind: Clone + Debug + PartialEq + Eq + Display + for<'s> From<&'s str> {
+    /// Every event this version knows, without `Other`.
+    fn known() -> Vec<Self>;
+
     /// The harness-independent form of this event.
     fn to_any(&self) -> AnyEvent;
 }
@@ -90,6 +91,12 @@ pub enum AnyEvent {
 macro_rules! impl_event_kind {
     ($($event:ident),*) => {$(
         impl EventKind for $event {
+            fn known() -> Vec<Self> {
+                <Self as strum::IntoEnumIterator>::iter()
+                    .filter(|e| !matches!(e, Self::Other(_)))
+                    .collect()
+            }
+
             fn to_any(&self) -> AnyEvent {
                 match self {
                     Self::SessionStart => AnyEvent::SessionStart,
@@ -115,14 +122,13 @@ impl_event_kind!(ClaudeCodeEvent, CodexEvent);
 #[cfg(test)]
 mod tests {
     use super::*;
-    use strum::IntoEnumIterator;
 
     #[test]
     fn wire_names_round_trip() {
-        for e in ClaudeCodeEvent::iter().filter(|e| !matches!(e, ClaudeCodeEvent::Other(_))) {
+        for e in ClaudeCodeEvent::known() {
             assert_eq!(ClaudeCodeEvent::from(e.to_string().as_str()), e);
         }
-        for e in CodexEvent::iter().filter(|e| !matches!(e, CodexEvent::Other(_))) {
+        for e in CodexEvent::known() {
             assert_eq!(CodexEvent::from(e.to_string().as_str()), e);
         }
     }
@@ -139,9 +145,9 @@ mod tests {
 
     #[test]
     fn seed_lists_have_the_spec_sizes() {
-        let known = |n: usize| n - 1;
-        assert_eq!(known(ClaudeCodeEvent::iter().count()), 33);
-        assert_eq!(known(CodexEvent::iter().count()), 12);
+        assert_eq!(ClaudeCodeEvent::known().len(), 33);
+        assert_eq!(CodexEvent::known().len(), 12);
+        assert!(!CodexEvent::known().contains(&CodexEvent::Other(String::new())));
     }
 
     #[test]
