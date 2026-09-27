@@ -13,7 +13,9 @@ jobs:
   drift:
     runs-on: ubuntu-latest
     env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # Issues filed with GITHUB_TOKEN start no workflows, so the @claude tag
+      # needs DRIFT_TOKEN (a PAT or app token) to reach Claude.
+      GH_TOKEN: ${{ secrets.DRIFT_TOKEN || secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
