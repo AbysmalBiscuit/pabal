@@ -23,18 +23,18 @@ export function claudeEvents(dts: string): string[] {
   return [...list.matchAll(/'([^']+)'/g)].map((m) => m[1]);
 }
 
-/** The non-optional top-level fields of `export declare type <type> = ... { ... }`. */
+/** The non-optional top-level fields of every `{ ... }` in `export declare type <type> = ...;`. */
 export function claudeRequiredFields(dts: string, type: string): string[] {
-  const start = dts.match(new RegExp(`export declare type ${type} = [^{;]*\\{`));
-  if (!start || start.index === undefined) return [];
+  const start = dts.indexOf(`export declare type ${type} = `);
+  if (start < 0) return [];
   let depth = 0;
-  let lineDepth = 1;
+  let lineDepth = 0;
   let line = "";
   const fields: string[] = [];
-  for (const ch of dts.slice(start.index + start[0].length - 1)) {
+  for (const ch of dts.slice(start)) {
+    if (ch === ";" && depth === 0) break;
     if (ch === "{") depth++;
     if (ch === "}") depth--;
-    if (depth === 0) break;
     if (ch !== "\n") {
       line += ch;
       continue;

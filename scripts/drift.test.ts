@@ -28,6 +28,26 @@ test("diff reports added and removed", () => {
   expect(diff(["A", "B"], ["B", "C"])).toEqual({ added: ["A"], removed: ["C"] });
 });
 
+test("claudeRequiredFields reads every object of an intersection", () => {
+  const dts = [
+    "export declare type PreModelSwitchHookInput = (BaseHookInput & {",
+    "    hook_event_name: 'PreModelSwitch';",
+    "}) & {",
+    "    from_model: string;",
+    "    requested_model: string | null;",
+    "    reason?: string;",
+    "};",
+    "export declare type Next = {",
+    "    other: string;",
+    "};",
+  ].join("\n");
+  expect(claudeRequiredFields(dts, "PreModelSwitchHookInput")).toEqual([
+    "hook_event_name",
+    "from_model",
+    "requested_model",
+  ]);
+});
+
 test("claudeRequiredFields skips doc comments and nested fields", () => {
   const dts = [
     "export declare type BaseHookInput = {",
