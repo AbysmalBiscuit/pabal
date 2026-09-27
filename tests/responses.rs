@@ -36,31 +36,55 @@ fn deny() {
 }
 
 #[test]
-fn ask_and_allow() {
+fn claude_code_can_ask_and_allow() {
     let c = payload::<ClaudeCode>("PreToolUse");
+    let pre = c.pre_tool_use().unwrap();
+    assert_eq!(
+        parsed(&pre.ask("sure?")),
+        json!({"hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "permissionDecision": "ask",
+            "permissionDecisionReason": "sure?"
+        }})
+    );
+    assert_eq!(
+        parsed(&pre.allow_skipping_prompt()),
+        json!({"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "allow"}})
+    );
+}
+
+#[test]
+fn any_view_asks_and_allows_only_on_claude_code() {
+    let c = any(AnyHarness::ClaudeCode, "PreToolUse");
+    let AnyView::PreToolUse(pre) = c.view() else {
+        panic!()
+    };
+    assert_eq!(
+        parsed(&pre.ask("sure?").unwrap())["hookSpecificOutput"]["permissionDecision"],
+        "ask"
+    );
+    assert_eq!(
+        parsed(&pre.allow_skipping_prompt().unwrap())["hookSpecificOutput"]["permissionDecision"],
+        "allow"
+    );
+    let x = any(AnyHarness::Codex, "PreToolUse");
+    let AnyView::PreToolUse(pre) = x.view() else {
+        panic!()
+    };
+    assert_eq!(pre.ask("sure?"), None);
+    assert_eq!(pre.allow_skipping_prompt(), None);
+}
+
+#[test]
+fn a_blank_deny_reason_is_replaced() {
     let x = payload::<Codex>("PreToolUse");
-    for pre in [
-        c.pre_tool_use().unwrap().ask("sure?"),
-        x.pre_tool_use().unwrap().ask("sure?"),
+    for r in [
+        x.pre_tool_use().unwrap().deny(" \n"),
+        Response::deny_pre_tool_use(AnyHarness::Codex, ""),
     ] {
-        assert_eq!(
-            parsed(&pre),
-            json!({"hookSpecificOutput": {
-                "hookEventName": "PreToolUse",
-                "permissionDecision": "ask",
-                "permissionDecisionReason": "sure?"
-            }})
-        );
+        let reason = parsed(&r)["hookSpecificOutput"]["permissionDecisionReason"].clone();
+        assert!(!reason.as_str().unwrap().trim().is_empty(), "{reason}");
     }
-    let allow = json!({"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "allow"}});
-    assert_eq!(
-        parsed(&c.pre_tool_use().unwrap().allow_skipping_prompt()),
-        allow
-    );
-    assert_eq!(
-        parsed(&x.pre_tool_use().unwrap().allow_skipping_prompt()),
-        allow
-    );
 }
 
 fn context(event: &str) -> Value {

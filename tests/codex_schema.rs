@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use pabal::{AddContext, Allow, Ask, Codex, Deny, Payload, Response};
+use pabal::{AddContext, Codex, Deny, Payload, Response};
 use serde_json::{Value, json};
 
 /// The Codex schema directory: `PABAL_CODEX_SCHEMAS`, else the vendored copy.
@@ -43,8 +43,6 @@ fn codex_responses_match_the_output_schemas() {
     let pre = pre.pre_tool_use().unwrap();
     let mut responses: Vec<(&str, Response)> = vec![
         ("PreToolUse", pre.deny("no")),
-        ("PreToolUse", pre.ask("sure?")),
-        ("PreToolUse", pre.allow_skipping_prompt()),
         ("PreToolUse", pre.add_context("x")),
     ];
     let post = payload("PostToolUse");

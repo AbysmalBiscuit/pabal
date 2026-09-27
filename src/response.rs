@@ -5,12 +5,11 @@ use std::fmt;
 
 use serde_json::{Map, Value, json};
 
-use crate::AnyHarness;
-use crate::Harness;
 use crate::view::{
     AnyPostToolUse, AnyPreToolUse, AnySessionStart, AnySubagentStart, AnyUserPromptSubmit,
     PostToolBatch, PostToolUse, PreToolUse, SessionStart, SubagentStart, UserPromptSubmit,
 };
+use crate::{AnyHarness, ClaudeCode, Harness};
 
 /// What a hook writes to stdout: a JSON object, or nothing.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -33,7 +32,7 @@ impl Response {
     /// Denies a `PreToolUse` call when no payload could be parsed.
     pub fn deny_pre_tool_use(harness: AnyHarness, reason: &str) -> Self {
         match harness {
-            AnyHarness::ClaudeCode | AnyHarness::Codex => permission("deny", Some(reason)),
+            AnyHarness::ClaudeCode | AnyHarness::Codex => deny(reason),
         }
     }
 }
@@ -60,6 +59,16 @@ fn permission(decision: &str, reason: Option<&str>) -> Response {
         fields.insert("permissionDecisionReason".to_owned(), json!(reason));
     }
     hook_specific("PreToolUse", fields)
+}
+
+/// Codex rejects a blank deny reason and runs the tool anyway.
+fn deny(reason: &str) -> Response {
+    let reason = if reason.trim().is_empty() {
+        "Denied by a hook."
+    } else {
+        reason
+    };
+    permission("deny", Some(reason))
 }
 
 fn context(event: &str, text: &str) -> Response {
@@ -91,35 +100,43 @@ pub trait AddContext {
     fn add_context(&self, text: &str) -> Response;
 }
 
-/// Asks the user to confirm the tool call. Only `PreToolUse` has it:
+/// Asks the user to confirm the tool call. Only Claude Code's `PreToolUse`
+/// has it; Codex fails open on `ask`:
 ///
 /// ```compile_fail
 /// use pabal::{Ask, Codex, Payload};
 /// let p = Payload::<Codex>::parse("{}").unwrap();
-/// p.session_start().unwrap().ask("sure?");
+/// p.pre_tool_use().unwrap().ask("sure?");
 /// ```
 pub trait Ask {
     fn ask(&self, reason: &str) -> Response;
 }
 
-/// Allows the tool call, skipping the user's own permission prompt.
+/// Allows the tool call, skipping the user's own permission prompt. Only
+/// Claude Code's `PreToolUse` has it:
+///
+/// ```compile_fail
+/// use pabal::{Allow, Codex, Payload};
+/// let p = Payload::<Codex>::parse("{}").unwrap();
+/// p.pre_tool_use().unwrap().allow_skipping_prompt();
+/// ```
 pub trait Allow {
     fn allow_skipping_prompt(&self) -> Response;
 }
 
 impl<H: Harness> Deny for PreToolUse<'_, H> {
     fn deny(&self, reason: &str) -> Response {
-        permission("deny", Some(reason))
+        deny(reason)
     }
 }
 
-impl<H: Harness> Ask for PreToolUse<'_, H> {
+impl Ask for PreToolUse<'_, ClaudeCode> {
     fn ask(&self, reason: &str) -> Response {
         permission("ask", Some(reason))
     }
 }
 
-impl<H: Harness> Allow for PreToolUse<'_, H> {
+impl Allow for PreToolUse<'_, ClaudeCode> {
     fn allow_skipping_prompt(&self) -> Response {
         permission("allow", None)
     }
@@ -158,21 +175,26 @@ add_context!(
     SubagentStart AnySubagentStart
 );
 
-macro_rules! any_pre_tool_use {
-    ($($trait:ident $method:ident($($arg:ident)?);)*) => {$(
-        impl $trait for AnyPreToolUse<'_> {
-            fn $method(&self $(, $arg: &str)?) -> Response {
-                match self {
-                    AnyPreToolUse::ClaudeCode(v) => v.$method($($arg)?),
-                    AnyPreToolUse::Codex(v) => v.$method($($arg)?),
-                }
-            }
-        }
-    )*};
+impl Deny for AnyPreToolUse<'_> {
+    fn deny(&self, reason: &str) -> Response {
+        deny(reason)
+    }
 }
 
-any_pre_tool_use! {
-    Deny deny(reason);
-    Ask ask(reason);
-    Allow allow_skipping_prompt();
+impl AnyPreToolUse<'_> {
+    /// [`Ask::ask`], or `None` on a harness without it.
+    pub fn ask(&self, reason: &str) -> Option<Response> {
+        match self {
+            AnyPreToolUse::ClaudeCode(v) => Some(v.ask(reason)),
+            AnyPreToolUse::Codex(_) => None,
+        }
+    }
+
+    /// [`Allow::allow_skipping_prompt`], or `None` on a harness without it.
+    pub fn allow_skipping_prompt(&self) -> Option<Response> {
+        match self {
+            AnyPreToolUse::ClaudeCode(v) => Some(v.allow_skipping_prompt()),
+            AnyPreToolUse::Codex(_) => None,
+        }
+    }
 }

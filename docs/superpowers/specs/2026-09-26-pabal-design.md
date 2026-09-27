@@ -292,10 +292,10 @@ Response methods live on the view types, through traits implemented only for the
 
 | Trait | Method | Implemented for |
 |---|---|---|
-| `Deny` | `deny(reason) -> Response` | Claude Code and Codex `PreToolUse`: `hookSpecificOutput.permissionDecision = "deny"` with `permissionDecisionReason`. |
+| `Deny` | `deny(reason) -> Response` | Claude Code and Codex `PreToolUse`: `hookSpecificOutput.permissionDecision = "deny"` with `permissionDecisionReason`. A blank reason is replaced with a fixed one, because Codex treats a blank deny reason as invalid and runs the tool. |
 | `AddContext` | `add_context(text) -> Response` | Codex `PreToolUse`, `PostToolUse`, `UserPromptSubmit`, `SessionStart`, `SubagentStart` (the Codex output schemas that declare it), as `hookSpecificOutput.additionalContext`. Claude Code, the same events plus `PostToolBatch`, same envelope. Claude accepts `additionalContext` on more events (`PostToolUseFailure`, `Stop`, `SubagentStop`, and others); v0.1.0 implements the subset consumers use. |
-| `Ask` | `ask(reason) -> Response` | Claude Code and Codex `PreToolUse` (`permissionDecision = "ask"`; Codex's schema lists `allow`, `deny`, `ask`). |
-| `Allow` | `allow_skipping_prompt() -> Response` | Claude Code and Codex `PreToolUse`. The name is deliberate: an explicit allow bypasses the user's own permission prompt, which devkit avoids on purpose. |
+| `Ask` | `ask(reason) -> Response` | Claude Code `PreToolUse` (`permissionDecision = "ask"`). Codex's output schema lists `ask`, but its parser rejects it and runs the tool (`hooks/src/engine/output_parser.rs`). |
+| `Allow` | `allow_skipping_prompt() -> Response` | Claude Code `PreToolUse`. Codex accepts `allow` only with `updatedInput` and otherwise runs the tool as if no hook answered. The name is deliberate: an explicit allow bypasses the user's own permission prompt, which devkit avoids on purpose. |
 
 `Response::deny_pre_tool_use(AnyHarness, reason)` builds the same deny without a payload. devkit denies when stdin is not JSON, and at that point it has only the harness from its flag. Both harnesses get the same envelope, with `hookEventName: "PreToolUse"`.
 
