@@ -115,13 +115,37 @@ impl<'a> Tool<'a> {
 }
 
 /// Splits `mcp__<server>__<tool>` into `(server, tool)`. A known `server`
-/// is stripped whole; otherwise the name splits at the first `__`.
+/// is stripped in the form Claude Code writes it into tool names; otherwise
+/// the name splits at the first `__`.
 fn split_mcp<'a>(name: &'a str, server: Option<&'a str>) -> Option<(&'a str, &'a str)> {
     let rest = name.strip_prefix("mcp__")?;
-    let known = server.and_then(|s| Some((s, rest.strip_prefix(s)?.strip_prefix("__")?)));
+    let known = server.and_then(|s| {
+        let tool = rest.strip_prefix(&tool_name_form(s))?.strip_prefix("__")?;
+        Some((s, tool))
+    });
     known
         .or_else(|| rest.split_once("__"))
         .filter(|(server, tool)| !server.is_empty() && !tool.is_empty())
+}
+
+/// Claude Code's `mcp__` form of a server name: characters outside
+/// `[A-Za-z0-9_-]` become `_`, and `claude.ai ` connectors collapse and trim
+/// their underscores.
+fn tool_name_form(server: &str) -> String {
+    let form: String = server
+        .chars()
+        .map(|c| match c {
+            'A'..='Z' | 'a'..='z' | '0'..='9' | '_' | '-' => c,
+            _ => '_',
+        })
+        .collect();
+    if !server.starts_with("claude.ai ") {
+        return form;
+    }
+    form.split('_')
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<_>>()
+        .join("_")
 }
 
 fn patch_paths(envelope: &str) -> Vec<&str> {
@@ -234,6 +258,21 @@ mod tests {
                 input: &json!({"q": 1})
             })
         );
+    }
+
+    #[test]
+    fn claude_mcp_names_the_server_by_its_config_key() {
+        for (name, key) in [
+            ("mcp__claude_ai_Linear__save_issue", "claude.ai Linear"),
+            ("mcp__my_srv_v2__save_issue", "my srv.v2"),
+        ] {
+            let mut v = pre(name, json!({}));
+            v["mcp_server"] = json!({"name": key});
+            assert!(matches!(
+                claude(v).tool(),
+                Some(Tool::Mcp { server: Some(s), tool: "save_issue", .. }) if s == key
+            ));
+        }
     }
 
     #[test]
