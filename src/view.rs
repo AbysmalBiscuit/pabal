@@ -6,8 +6,8 @@ use std::ops::Deref;
 use serde_json::Value;
 
 use crate::{
-    AnyEvent, AnyPayload, ClaudeCode, Codex, Cursor, CursorEvent, EventKind, Fields, Harness,
-    Payload, ToolCall, payload::text,
+    Antigravity, AnyEvent, AnyPayload, ClaudeCode, Codex, Cursor, CursorEvent, EventKind, Fields,
+    Harness, Payload, ToolCall, payload::text,
 };
 
 /// A view of an event this crate does not model; the payload is all it has.
@@ -93,13 +93,14 @@ shared_views! {
     SessionEnd AnySessionEnd HasSessionEnd session_end [ClaudeCode Codex Cursor];
     UserPromptSubmit AnyUserPromptSubmit HasUserPromptSubmit user_prompt_submit
         [ClaudeCode Codex Cursor];
-    PreToolUse AnyPreToolUse HasPreToolUse pre_tool_use [ClaudeCode Codex Cursor];
-    PostToolUse AnyPostToolUse HasPostToolUse post_tool_use [ClaudeCode Codex Cursor];
+    PreToolUse AnyPreToolUse HasPreToolUse pre_tool_use [ClaudeCode Codex Cursor Antigravity];
+    PostToolUse AnyPostToolUse HasPostToolUse post_tool_use
+        [ClaudeCode Codex Cursor Antigravity];
     PermissionRequest AnyPermissionRequest HasPermissionRequest permission_request
         [ClaudeCode Codex];
     SubagentStart AnySubagentStart HasSubagentStart subagent_start [ClaudeCode Codex Cursor];
     SubagentStop AnySubagentStop HasSubagentStop subagent_stop [ClaudeCode Codex Cursor];
-    Stop AnyStop HasStop stop [ClaudeCode Codex Cursor];
+    Stop AnyStop HasStop stop [ClaudeCode Codex Cursor Antigravity];
     PreCompact AnyPreCompact HasPreCompact pre_compact [ClaudeCode Codex Cursor];
     PostCompact AnyPostCompact HasPostCompact post_compact [ClaudeCode Codex];
 }
@@ -271,6 +272,18 @@ pub enum CursorView<'a> {
     AfterTabFileEdit(Raw<'a, Cursor>),
     WorkspaceOpen(Raw<'a, Cursor>),
     Other(Raw<'a, Cursor>),
+}
+
+/// An Antigravity payload narrowed to its event.
+#[derive(Debug, Clone, Copy)]
+#[allow(missing_docs, reason = "each variant is its config name")]
+pub enum AntigravityView<'a> {
+    PreToolUse(PreToolUse<'a, Antigravity>),
+    PostToolUse(PostToolUse<'a, Antigravity>),
+    PreInvocation(Raw<'a, Antigravity>),
+    PostInvocation(Raw<'a, Antigravity>),
+    Stop(Stop<'a, Antigravity>),
+    Other(Raw<'a, Antigravity>),
 }
 
 #[cfg(test)]

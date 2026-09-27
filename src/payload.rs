@@ -2,7 +2,9 @@ use std::{marker::PhantomData, path::Path};
 
 use serde_json::Value;
 
-use crate::{AnyEvent, AnyHarness, ClaudeCode, Codex, Cursor, Error, EventKind, Harness, Tool};
+use crate::{
+    Antigravity, AnyEvent, AnyHarness, ClaudeCode, Codex, Cursor, Error, EventKind, Harness, Tool,
+};
 
 /// A hook payload from harness `H`: its event and the raw JSON.
 #[derive(Debug, Clone)]
@@ -25,12 +27,30 @@ impl<H: Harness> Payload<H> {
         Self::from_value(serde_json::from_str(stdin)?)
     }
 
+    /// Parses hook stdin from a harness that leaves the event out of the
+    /// payload, such as Antigravity. `event` names it, typically from a flag
+    /// the hook's config passes; a `hook_event_name` in the payload still
+    /// wins. The raw payload stays as sent.
+    ///
+    /// ```
+    /// use pabal::{Antigravity, AntigravityEvent, Payload};
+    /// let p = Payload::<Antigravity>::parse_named("Stop", r#"{"conversationId":"c1"}"#).unwrap();
+    /// assert_eq!(p.event(), &AntigravityEvent::Stop);
+    /// ```
+    pub fn parse_named(event: &str, stdin: &str) -> Result<Self, Error> {
+        Self::new(serde_json::from_str(stdin)?, event)
+    }
+
     /// Wraps an already parsed payload. Fails only when it is not an object.
     pub fn from_value(raw: Value) -> Result<Self, Error> {
+        Self::new(raw, "")
+    }
+
+    fn new(raw: Value, event: &str) -> Result<Self, Error> {
         if !raw.is_object() {
             return Err(Error::NotObject);
         }
-        let event = H::Event::from(text(&raw, "hook_event_name").unwrap_or(""));
+        let event = H::Event::from(text(&raw, "hook_event_name").unwrap_or(event));
         Ok(Self {
             event,
             raw,
@@ -59,8 +79,8 @@ pub trait Fields {
     fn harness(&self) -> AnyHarness;
     /// The event in its harness-independent form.
     fn any_event(&self) -> AnyEvent;
-    /// The `hook_event_name` as sent, including events this crate does not
-    /// know.
+    /// The `hook_event_name` as sent, or as named to
+    /// [`Payload::parse_named`], including events this crate does not know.
     fn event_name(&self) -> String;
     /// The `session_id`. Cursor sends it only on `sessionStart` and
     /// `sessionEnd`, equal to `conversation_id`, so on Cursor this falls back
@@ -140,6 +160,7 @@ pub enum AnyPayload {
     ClaudeCode(Payload<ClaudeCode>),
     Codex(Payload<Codex>),
     Cursor(Payload<Cursor>),
+    Antigravity(Payload<Antigravity>),
 }
 
 impl AnyPayload {
@@ -148,12 +169,23 @@ impl AnyPayload {
         Self::from_value(harness, serde_json::from_str(stdin)?)
     }
 
+    /// Parses hook stdin as coming from `harness`, naming its event as
+    /// [`Payload::parse_named`] does.
+    pub fn parse_named(harness: AnyHarness, event: &str, stdin: &str) -> Result<Self, Error> {
+        Self::new(harness, serde_json::from_str(stdin)?, event)
+    }
+
     /// Wraps an already parsed payload from `harness`.
     pub fn from_value(harness: AnyHarness, raw: Value) -> Result<Self, Error> {
+        Self::new(harness, raw, "")
+    }
+
+    fn new(harness: AnyHarness, raw: Value, event: &str) -> Result<Self, Error> {
         Ok(match harness {
-            AnyHarness::ClaudeCode => Self::ClaudeCode(Payload::from_value(raw)?),
-            AnyHarness::Codex => Self::Codex(Payload::from_value(raw)?),
-            AnyHarness::Cursor => Self::Cursor(Payload::from_value(raw)?),
+            AnyHarness::ClaudeCode => Self::ClaudeCode(Payload::new(raw, event)?),
+            AnyHarness::Codex => Self::Codex(Payload::new(raw, event)?),
+            AnyHarness::Cursor => Self::Cursor(Payload::new(raw, event)?),
+            AnyHarness::Antigravity => Self::Antigravity(Payload::new(raw, event)?),
         })
     }
 
@@ -277,6 +309,25 @@ mod tests {
         )
         .unwrap();
         assert_eq!(stop.agent(), None);
+    }
+
+    #[test]
+    fn a_named_event_fills_in_only_a_missing_hook_event_name() {
+        let named = AnyPayload::parse_named(
+            AnyHarness::Antigravity,
+            "PreToolUse",
+            r#"{"conversationId":"c1","transcriptPath":"/t.jsonl"}"#,
+        )
+        .unwrap();
+        assert_eq!(named.any_event(), AnyEvent::PreToolUse);
+        assert!(named.raw().get("hook_event_name").is_none());
+        assert_eq!(
+            (named.session_id(), named.transcript_path()),
+            (Some("c1"), Some(Path::new("/t.jsonl")))
+        );
+        let sent =
+            Payload::<Codex>::parse_named("Stop", r#"{"hook_event_name":"SessionStart"}"#).unwrap();
+        assert_eq!(sent.event(), &CodexEvent::SessionStart);
     }
 
     #[test]

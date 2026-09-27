@@ -1,6 +1,6 @@
 # pabal design
 
-Status: revised after review; Cursor added after v0.1.0 (see Cursor)
+Status: revised after review; Cursor and Antigravity added after v0.1.0 (see Cursor, Antigravity)
 Date: 2026-09-26
 
 ## Problem
@@ -27,7 +27,7 @@ In scope for v0.1.0:
 - Building the response JSON each harness reads from hook stdout.
 - A fixture corpus and CI that detects vendor drift.
 
-Added after v0.1.0: Cursor (see Cursor).
+Added after v0.1.0: Cursor and Google Antigravity (see Cursor, Antigravity).
 
 Out of scope:
 
@@ -55,10 +55,10 @@ pabal/
   src/
     lib.rs          # module wiring, crate docs
     prelude.rs      # glob-importable re-exports
-    harness/        # Harness trait, ClaudeCode, Codex, Cursor, AnyHarness, inference
+    harness/        # Harness trait, ClaudeCode, Codex, Cursor, Antigravity, AnyHarness, inference
     event.rs        # per-harness event enums, AnyEvent
     payload.rs      # Payload<H>, Fields, AnyPayload
-    view.rs         # ClaudeCodeView, CodexView, CursorView, per-event view types, AnyView
+    view.rs         # per-harness view enums, per-event view types, AnyView
     tool.rs         # Tool, Edit, ToolCall, per-harness tool-name tables, apply_patch header parsing
     response.rs     # Response, response traits per event view
     error.rs        # pabal::Error
@@ -126,11 +126,11 @@ pub enum AnyPayload { ClaudeCode(Payload<ClaudeCode>), Codex(Payload<Codex>) }
 Both paths exist, and the explicit one wins:
 
 1. **Explicit.** The consumer names the harness (typically a `--harness` flag in its hook manifest) and parses with `Payload::<Codex>::parse(stdin)` or `AnyPayload::parse(AnyHarness::Codex, stdin)`.
-2. **Inferred.** `AnyHarness::infer(&raw)` reads positive evidence each harness sends, extracted from devkit's `infer_harness`. A Cursor event name means Cursor, and so does any camelCase event with `cursor_version`. A PascalCase event with `cursor_version` comes from Cursor running a hook configured for Claude Code (see Cursor), and reads as Claude Code. Otherwise an event only one harness sends decides, then `turn_id` or `model` means Codex, and anything else is Claude Code.
+2. **Inferred.** `AnyHarness::infer(&raw)` reads positive evidence each harness sends, extracted from devkit's `infer_harness`. `conversationId` (camelCase) means Antigravity. A Cursor event name means Cursor, and so does any camelCase event with `cursor_version`. A PascalCase event with `cursor_version` comes from Cursor running a hook configured for Claude Code (see Cursor), and reads as Claude Code. Otherwise an event only one harness sends decides, then `turn_id` or `model` means Codex, and anything else is Claude Code.
 
 Inference is best-effort, and its docs name the two payload shapes it gets wrong. Codex `SessionEnd` carries neither `turn_id` nor `model` (its input schema requires only `cwd`, `hook_event_name`, `reason`, `session_id`, `transcript_path`), so it infers as Claude Code. Claude Code `SessionStart` sometimes carries `model`, so it infers as Codex. Consumers whose manifests can pass `--harness` should.
 
-Canonical names are `claude-code`, `codex` and `cursor`, with `claude` accepted as an alias for `claude-code` so alacritree's installed manifests keep working. `strum` derives the string forms; the optional `clap` feature adds `ValueEnum`.
+Canonical names are `claude-code`, `codex`, `cursor` and `antigravity`, with `claude` accepted as an alias for `claude-code` so alacritree's installed manifests keep working. `strum` derives the string forms; the optional `clap` feature adds `ValueEnum`.
 
 ### Events
 
@@ -158,6 +158,7 @@ v0.1.0 seed lists come from each vendor's own source, so the first drift run doe
 |---|---|---|
 | Claude Code | SessionStart, Setup, UserPromptSubmit, UserPromptExpansion, PreToolUse, PermissionRequest, PermissionDenied, PostToolUse, PostToolUseFailure, PostToolBatch, Notification, MessageDisplay, SubagentStart, SubagentStop, TaskCreated, TaskCompleted, Stop, StopFailure, TeammateIdle, InstructionsLoaded, ConfigChange, CwdChanged, DirectoryAdded, FileChanged, WorktreeCreate, WorktreeRemove, PreCompact, PostCompact, PreModelSwitch, PostModelSwitch, Elicitation, ElicitationResult, SessionEnd | [Claude Code hooks reference](https://code.claude.com/docs/en/hooks) and `HOOK_EVENTS` in `@anthropic-ai/claude-agent-sdk` 0.3.283, read 2026-09-26 |
 | Codex | PreToolUse, PostToolUse, PermissionRequest, SessionStart, SessionEnd, UserPromptSubmit, Stop, Interrupt, SubagentStart, SubagentStop, PreCompact, PostCompact | `codex-rs/hooks/schema/generated/*.command.input.schema.json` at rust-v0.155.1 |
+| Antigravity | PreToolUse, PostToolUse, PreInvocation, PostInvocation, Stop | [Antigravity hooks docs](https://antigravity.google/docs/hooks.md), read 2026-09-27 |
 | Cursor | sessionStart, sessionEnd, preToolUse, postToolUse, postToolUseFailure, subagentStart, subagentStop, beforeShellExecution, afterShellExecution, beforeMCPExecution, afterMCPExecution, beforeReadFile, afterFileEdit, beforeSubmitPrompt, preCompact, stop, afterAgentResponse, afterAgentThought, beforeTabFileRead, afterTabFileEdit, workspaceOpen | [Cursor hooks reference](https://cursor.com/docs/hooks.md), read 2026-09-27 |
 
 Every event gets a variant. Only the events a consumer handles get a dedicated view (see Views); the rest narrow to a generic view over the raw payload.
@@ -341,9 +342,9 @@ One `pabal::Error` (via `thiserror`) for input that is not a JSON object. Unknow
 
 ```rust
 use pabal::prelude::*;
-// ClaudeCode, Codex, Cursor, Harness, AnyHarness,
+// ClaudeCode, Codex, Cursor, Antigravity, Harness, AnyHarness,
 // Payload, AnyPayload, Fields,
-// ClaudeCodeView, CodexView, CursorView, AnyView, AnyEvent,
+// ClaudeCodeView, CodexView, CursorView, AntigravityView, AnyView, AnyEvent,
 // Tool, Edit, ToolCall, ShellKind,
 // Response, Deny, AddContext, Ask, Allow
 ```
@@ -379,6 +380,7 @@ A scheduled workflow (weekly) checks each harness against its upstream source:
 | Codex | latest `rust-v*` release tag of `openai/codex`, `codex-rs/hooks/schema/generated/` | Event list equals `CodexEvent`; fixtures validate against input schemas; responses validate against output schemas |
 | Claude Code | `sdk.d.ts` in the latest `@anthropic-ai/claude-agent-sdk`: the `HOOK_EVENTS` constant and the `<Event>HookInput` types | Event list equals `ClaudeCodeEvent`; each required field of a `<Event>HookInput` appears in that event's fixtures |
 | Cursor | `https://cursor.com/docs/hooks.md`, the markdown form of the hooks reference. Cursor publishes no typings or schema. | The `#### <event>` headings under `### Hook events` equal `CursorEvent` |
+| Antigravity | `https://antigravity.google/docs/hooks.md`. Antigravity publishes no typings or schema. | The events in the `## Supported Events` table equal `AntigravityEvent` |
 
 On drift, the job opens or updates one issue per harness listing what changed, and tags `@claude` in it to open a PR adding fixtures and variants. Each such PR is reviewed by hand, since a new variant is a minor bump for every consumer.
 
@@ -409,6 +411,34 @@ What the reference leaves to the caller:
 - **Failure mode.** Exit 2 denies. Crashes, timeouts and other non-zero exits fail open unless the hook sets `failClosed: true`. A permission hook's invalid JSON, or a response that does not match its schema, blocks the action.
 - **Claude hooks under Cursor.** Cursor runs hooks configured for Claude Code (`~/.claude/settings.json`, project `.claude/settings.json`, on by default) and sends them Claude's event names for PreToolUse, PostToolUse, UserPromptSubmit, Stop, SubagentStop, SessionStart, SessionEnd and PreCompact, with `cursor_version` set ([third-party hooks docs](https://cursor.com/docs/reference/third-party-hooks)). It accepts Claude's `hookSpecificOutput` responses there. Those payloads parse as Claude Code.
 - **Unmodeled responses.** `updated_input` on `preToolUse`, `followup_message` on `stop` and `subagentStop`, `continue: false` on `beforeSubmitPrompt`, deny on `beforeReadFile`, `beforeTabFileRead` and `subagentStart`, and `additional_context` on `postToolUseFailure` have no consumer yet, so they have no trait.
+
+## Antigravity
+
+Google Antigravity is the second harness added after v0.1.0: an `Antigravity` type, `AntigravityEvent`, `AntigravityView` and `AnyHarness::Antigravity`. Its facts come from the [Antigravity hooks docs](https://antigravity.google/docs/hooks.md), read 2026-09-27. The fixtures under `tests/fixtures/antigravity/` are the docs' examples, not captured payloads.
+
+**The event is not in the payload.** The docs list every stdin field per event, and none names the event. A hook command learns its event from its own `hooks.json` entry instead, for example `my-hook --event PreToolUse`, and passes it to `Payload::parse_named(event, stdin)` or `AnyPayload::parse_named(harness, event, stdin)`. A `hook_event_name` in the payload still wins, so a harness that sends one reads the same either way, and `raw()` stays the payload as sent. Payloads cannot stand in for the name: `PreInvocation` and `PostInvocation` carry identical fields.
+
+**Fields.** The payload is camelCase. `session_id()` reads `conversationId` and `transcript_path()` reads `transcriptPath`. There is no top-level `cwd`, subagent id or tool-use id, so `cwd()`, `agent_id()`, `agent()` and `tool_use_id()` are `None`; `workspacePaths`, `stepIdx` and the rest stay in `raw()`.
+
+**Events.** `PreToolUse`, `PostToolUse` and `Stop` map to the `AnyEvent` of the same name. `PreInvocation` and `PostInvocation` fire around each model call and are `Other`.
+
+**Tools.** The call is `toolCall: {name, args}`, with PascalCase argument names.
+
+| Variant | Antigravity tool |
+|---|---|
+| `Shell` | `run_command` with `args.CommandLine`; `cwd` from `args.Cwd`; `shell` is `None` |
+| `Edit::Write` | `write_to_file`, `replace_file_content`, `multi_replace_file_content` with `args.TargetFile` |
+| `Other` | everything else, with `args` as `input`. The docs name no MCP tools. |
+
+**Responses.** `PreToolUse` answers with `decision` and an optional `reason`:
+
+| Trait | Envelope |
+|---|---|
+| `Deny` | `{"decision": "deny", "reason": reason}` |
+| `Ask` | `{"decision": "ask", "reason": reason}` |
+| `Allow` | `{"decision": "allow"}`, which the docs describe as allowing without a prompt |
+
+`force_ask`, `deny_unless_prior_grant`, `permissionOverrides`, `injectSteps`, `terminationBehavior` and `Stop`'s `decision: "continue"` have no consumer yet, so they have no trait. The docs mark `decision` required on `PreToolUse` and say nothing about exit codes or about an empty stdout, so whether `Response::none()` counts as no opinion there is unverified. `PostToolUse` has no response fields, so `AnyPostToolUse::add_context` returns `None` for Antigravity.
 
 ## Setup
 

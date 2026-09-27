@@ -1,6 +1,6 @@
 use pabal::{
-    AddContext, Allow, AnyHarness, AnyPayload, AnyView, Ask, ClaudeCode, Codex, Cursor, Deny,
-    Harness, Payload, Response,
+    AddContext, Allow, Antigravity, AnyHarness, AnyPayload, AnyView, Ask, ClaudeCode, Codex,
+    Cursor, Deny, Harness, Payload, Response,
 };
 use serde_json::{Value, json};
 
@@ -227,7 +227,7 @@ fn any_view_context_on_every_shared_context_event() {
         ] {
             let p = any(harness, event);
             let r = match p.view() {
-                AnyView::PostToolUse(v) => v.add_context("x"),
+                AnyView::PostToolUse(v) => v.add_context("x").unwrap(),
                 AnyView::UserPromptSubmit(v) => v.add_context("x").unwrap(),
                 AnyView::SessionStart(v) => v.add_context("x"),
                 AnyView::SubagentStart(v) => v.add_context("x").unwrap(),
@@ -316,4 +316,45 @@ fn any_view_offers_cursor_only_what_it_honors() {
         };
         assert_eq!(r, None, "{event}");
     }
+}
+
+#[test]
+fn antigravity_decides_with_its_decision_envelope() {
+    let p = payload::<Antigravity>("PreToolUse");
+    let pre = p.pre_tool_use().unwrap();
+    assert_eq!(
+        parsed(&pre.deny("use devrun")),
+        json!({"decision": "deny", "reason": "use devrun"})
+    );
+    assert_eq!(
+        parsed(&pre.ask("sure?")),
+        json!({"decision": "ask", "reason": "sure?"})
+    );
+    assert_eq!(
+        parsed(&pre.allow_skipping_prompt()),
+        json!({"decision": "allow"})
+    );
+    assert_eq!(
+        Response::deny_pre_tool_use(AnyHarness::Antigravity, "use devrun"),
+        pre.deny("use devrun")
+    );
+}
+
+#[test]
+fn any_view_offers_antigravity_only_what_it_honors() {
+    let p = AnyPayload::parse_named(AnyHarness::Antigravity, "PreToolUse", "{}").unwrap();
+    let AnyView::PreToolUse(pre) = p.view() else {
+        panic!()
+    };
+    assert_eq!(parsed(&pre.ask("sure?").unwrap())["decision"], "ask");
+    assert_eq!(
+        parsed(&pre.allow_skipping_prompt().unwrap())["decision"],
+        "allow"
+    );
+    assert_eq!(pre.add_context("x"), None);
+    let p = AnyPayload::parse_named(AnyHarness::Antigravity, "PostToolUse", "{}").unwrap();
+    let AnyView::PostToolUse(post) = p.view() else {
+        panic!()
+    };
+    assert_eq!(post.add_context("x"), None);
 }

@@ -6,7 +6,7 @@ use std::fmt;
 use serde_json::{Map, Value, json};
 
 use crate::{
-    AnyHarness, ClaudeCode, Codex, Cursor, Harness,
+    Antigravity, AnyHarness, ClaudeCode, Codex, Cursor, Harness,
     view::{
         AnyPostToolUse, AnyPreToolUse, AnySessionStart, AnySubagentStart, AnyUserPromptSubmit,
         BeforeMcpExecution, BeforeShellExecution, PostToolBatch, PostToolUse, PreToolUse,
@@ -53,6 +53,7 @@ impl Response {
         match harness {
             AnyHarness::ClaudeCode | AnyHarness::Codex => permission("deny", Some(reason)),
             AnyHarness::Cursor => cursor_permission("deny", "agent_message", reason),
+            AnyHarness::Antigravity => decision("deny", Some(reason)),
         }
     }
 }
@@ -85,6 +86,16 @@ fn permission(decision: &str, reason: Option<&str>) -> Response {
 /// reaches the agent, `user_message` is shown to the user.
 fn cursor_permission(decision: &str, message: &str, reason: &str) -> Response {
     Response(Some(json!({ "permission": decision, message: reason })))
+}
+
+/// Antigravity's `PreToolUse` envelope. `reason` reaches the agent or the
+/// user, whichever the decision involves.
+fn decision(decision: &str, reason: Option<&str>) -> Response {
+    let mut fields = Map::from_iter([("decision".to_owned(), json!(decision))]);
+    if let Some(reason) = reason {
+        fields.insert("reason".to_owned(), json!(reason));
+    }
+    Response(Some(Value::Object(fields)))
 }
 
 /// Codex rejects a blank deny reason and runs the tool anyway.
@@ -132,9 +143,10 @@ pub trait AddContext {
     fn add_context(&self, text: &str) -> Response;
 }
 
-/// Asks the user to confirm the tool call. Claude Code's `PreToolUse` and
-/// Cursor's `beforeShellExecution` and `beforeMCPExecution` have it; Codex
-/// fails open on `ask`, and Cursor does not enforce it on `preToolUse`:
+/// Asks the user to confirm the tool call. Claude Code's and Antigravity's
+/// `PreToolUse` and Cursor's `beforeShellExecution` and `beforeMCPExecution`
+/// have it; Codex fails open on `ask`, and Cursor does not enforce it on
+/// `preToolUse`:
 ///
 /// ```compile_fail
 /// use pabal::{Ask, Codex, Payload};
@@ -146,8 +158,8 @@ pub trait Ask {
     fn ask(&self, reason: &str) -> Response;
 }
 
-/// Allows the tool call, skipping the user's own permission prompt. Only
-/// Claude Code's `PreToolUse` has it:
+/// Allows the tool call, skipping the user's own permission prompt. Claude
+/// Code's and Antigravity's `PreToolUse` have it:
 ///
 /// ```compile_fail
 /// use pabal::{Allow, Codex, Payload};
@@ -174,6 +186,18 @@ impl Ask for PreToolUse<'_, ClaudeCode> {
 impl Allow for PreToolUse<'_, ClaudeCode> {
     fn allow_skipping_prompt(&self) -> Response {
         permission("allow", None)
+    }
+}
+
+impl Ask for PreToolUse<'_, Antigravity> {
+    fn ask(&self, reason: &str) -> Response {
+        decision("ask", Some(reason))
+    }
+}
+
+impl Allow for PreToolUse<'_, Antigravity> {
+    fn allow_skipping_prompt(&self) -> Response {
+        decision("allow", None)
     }
 }
 
@@ -247,16 +271,6 @@ impl AddContext for AnySessionStart<'_> {
     }
 }
 
-impl AddContext for AnyPostToolUse<'_> {
-    fn add_context(&self, text: &str) -> Response {
-        match self {
-            AnyPostToolUse::ClaudeCode(v) => v.add_context(text),
-            AnyPostToolUse::Codex(v) => v.add_context(text),
-            AnyPostToolUse::Cursor(v) => v.add_context(text),
-        }
-    }
-}
-
 macro_rules! any_add_context {
     ($($any:ident [$($with:ident)*] [$($without:ident)*];)*) => {$(
         impl $any<'_> {
@@ -272,7 +286,8 @@ macro_rules! any_add_context {
 }
 
 any_add_context! {
-    AnyPreToolUse [ClaudeCode Codex] [Cursor];
+    AnyPreToolUse [ClaudeCode Codex] [Cursor Antigravity];
+    AnyPostToolUse [ClaudeCode Codex Cursor] [Antigravity];
     AnyUserPromptSubmit [ClaudeCode Codex] [Cursor];
     AnySubagentStart [ClaudeCode Codex] [Cursor];
 }
@@ -288,6 +303,7 @@ impl AnyPreToolUse<'_> {
     pub fn ask(&self, reason: &str) -> Option<Response> {
         match self {
             AnyPreToolUse::ClaudeCode(v) => Some(v.ask(reason)),
+            AnyPreToolUse::Antigravity(v) => Some(v.ask(reason)),
             AnyPreToolUse::Codex(_) | AnyPreToolUse::Cursor(_) => None,
         }
     }
@@ -296,6 +312,7 @@ impl AnyPreToolUse<'_> {
     pub fn allow_skipping_prompt(&self) -> Option<Response> {
         match self {
             AnyPreToolUse::ClaudeCode(v) => Some(v.allow_skipping_prompt()),
+            AnyPreToolUse::Antigravity(v) => Some(v.allow_skipping_prompt()),
             AnyPreToolUse::Codex(_) | AnyPreToolUse::Cursor(_) => None,
         }
     }

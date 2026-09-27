@@ -106,6 +106,23 @@ pub enum CursorEvent {
     Other(String),
 }
 
+/// A Google Antigravity hook event. Antigravity does not send the event in
+/// the payload, so the hook command names it; see [`Payload::parse_named`].
+///
+/// [`Payload::parse_named`]: crate::Payload::parse_named
+#[derive(Debug, Clone, PartialEq, Eq, strum::EnumString, strum::Display, strum::EnumIter)]
+#[allow(missing_docs, reason = "each variant is its config name")]
+pub enum AntigravityEvent {
+    PreToolUse,
+    PostToolUse,
+    PreInvocation,
+    PostInvocation,
+    Stop,
+    /// An event this version does not know, with the name it was given.
+    #[strum(default)]
+    Other(String),
+}
+
 /// An event several harnesses send, or `Other` with the harness's own name.
 #[derive(Debug, Clone, PartialEq, Eq, strum::Display)]
 #[allow(missing_docs, reason = "each variant is its wire name")]
@@ -162,6 +179,19 @@ macro_rules! impl_event_kind {
 
 impl_event_kind!(ClaudeCodeEvent, CodexEvent);
 
+impl EventKind for AntigravityEvent {
+    known!();
+
+    fn to_any(&self) -> AnyEvent {
+        match self {
+            Self::PreToolUse => AnyEvent::PreToolUse,
+            Self::PostToolUse => AnyEvent::PostToolUse,
+            Self::Stop => AnyEvent::Stop,
+            other => AnyEvent::Other(other.to_string()),
+        }
+    }
+}
+
 impl EventKind for CursorEvent {
     known!();
 
@@ -195,6 +225,9 @@ mod tests {
         }
         for e in CursorEvent::known() {
             assert_eq!(CursorEvent::from(e.to_string().as_str()), e);
+        }
+        for e in AntigravityEvent::known() {
+            assert_eq!(AntigravityEvent::from(e.to_string().as_str()), e);
         }
     }
 
@@ -233,6 +266,7 @@ mod tests {
         assert_eq!(ClaudeCodeEvent::known().len(), 33);
         assert_eq!(CodexEvent::known().len(), 12);
         assert_eq!(CursorEvent::known().len(), 21);
+        assert_eq!(AntigravityEvent::known().len(), 5);
         assert!(!CodexEvent::known().contains(&CodexEvent::Other(String::new())));
     }
 
@@ -259,6 +293,11 @@ mod tests {
         assert_eq!(
             CursorEvent::BeforeShellExecution.to_any(),
             AnyEvent::Other("beforeShellExecution".into())
+        );
+        assert_eq!(AntigravityEvent::Stop.to_any(), AnyEvent::Stop);
+        assert_eq!(
+            AntigravityEvent::PreInvocation.to_any(),
+            AnyEvent::Other("PreInvocation".into())
         );
     }
 }

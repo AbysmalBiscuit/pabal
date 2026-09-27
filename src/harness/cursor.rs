@@ -6,7 +6,7 @@ use super::{AnyHarness, Harness, Keys, sealed};
 use crate::{
     CursorEvent, Payload, Tool,
     payload::text,
-    tool::input,
+    tool::field,
     view::{
         BeforeMcpExecution, BeforeShellExecution, CursorView, PostToolUse, PreCompact, PreToolUse,
         Raw, SessionEnd, SessionStart, Stop, SubagentStart, SubagentStop, UserPromptSubmit,
@@ -38,9 +38,9 @@ impl Harness for Cursor {
         // `beforeShellExecution` and `afterShellExecution` carry the command
         // at the top level, with no tool name.
         let Some(name) = text(call, "tool_name") else {
-            return Tool::shell(call, cwd, None);
+            return Tool::shell(call, "command", cwd, None);
         };
-        let input = input(call);
+        let input = field(call, "tool_input");
         if let Some(server) = text(call, "mcp_server_name") {
             return Some(Tool::Mcp {
                 server: Some(server),
@@ -51,7 +51,7 @@ impl Harness for Cursor {
         let known = match name {
             "Shell" => {
                 let working_directory = text(input, "working_directory").map(Path::new);
-                Tool::shell(input, working_directory.or(cwd), None)
+                Tool::shell(input, "command", working_directory.or(cwd), None)
             }
             "Write" => Tool::write(input, "file_path"),
             _ => name.strip_prefix("MCP:").map(|tool| Tool::Mcp {

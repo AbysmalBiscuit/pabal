@@ -90,18 +90,19 @@ pub struct ToolCall<'a> {
 
 static NULL: Value = Value::Null;
 
-/// The `tool_input` of a call, `null` when absent.
-pub(crate) fn input(call: &Value) -> &Value {
-    call.get("tool_input").unwrap_or(&NULL)
+/// The `key` field of a tool call, `null` when absent.
+pub(crate) fn field<'a>(call: &'a Value, key: &str) -> &'a Value {
+    call.get(key).unwrap_or(&NULL)
 }
 
 impl<'a> Tool<'a> {
     pub(crate) fn shell(
         input: &'a Value,
+        key: &str,
         cwd: Option<&'a Path>,
         shell: Option<ShellKind>,
     ) -> Option<Self> {
-        let command = input.get("command")?.as_str()?;
+        let command = input.get(key)?.as_str()?;
         if command.trim().is_empty() {
             return None;
         }
@@ -204,7 +205,7 @@ mod tests {
     use serde_json::json;
 
     use super::*;
-    use crate::{AnyHarness, AnyPayload, ClaudeCode, Codex, Cursor, Fields, Payload};
+    use crate::{Antigravity, AnyHarness, AnyPayload, ClaudeCode, Codex, Cursor, Fields, Payload};
 
     fn claude(v: Value) -> Payload<ClaudeCode> {
         Payload::from_value(v).unwrap()
@@ -212,6 +213,11 @@ mod tests {
 
     fn cursor(v: Value) -> Payload<Cursor> {
         Payload::from_value(v).unwrap()
+    }
+
+    fn antigravity(name: &str, args: Value) -> Payload<Antigravity> {
+        let v = json!({"conversationId": "c1", "toolCall": {"name": name, "args": args}});
+        Payload::parse_named("PreToolUse", &v.to_string()).unwrap()
     }
 
     fn codex(v: Value) -> Payload<Codex> {
@@ -636,5 +642,47 @@ mod tests {
         }
         let p = cursor(json!({"hook_event_name": "sessionStart", "session_id": "s"}));
         assert_eq!(p.tool(), None);
+    }
+
+    #[test]
+    fn antigravity_run_command_is_a_shell_in_its_cwd() {
+        let p = antigravity(
+            "run_command",
+            json!({"CommandLine": "npm test", "Cwd": "/workspace/project", "WaitMsBeforeAsync": 5000}),
+        );
+        assert_eq!(
+            p.tool(),
+            Some(Tool::Shell {
+                command: "npm test",
+                cwd: Some(Path::new("/workspace/project")),
+                shell: None
+            })
+        );
+    }
+
+    #[test]
+    fn antigravity_file_writers_are_writes() {
+        for name in [
+            "write_to_file",
+            "replace_file_content",
+            "multi_replace_file_content",
+        ] {
+            let p = antigravity(name, json!({"TargetFile": "/w/a.rs"}));
+            assert_eq!(
+                p.tool(),
+                Some(Tool::Edit(Edit::Write {
+                    path: Path::new("/w/a.rs")
+                })),
+                "{name}"
+            );
+        }
+        let p = antigravity("view_file", json!({"AbsolutePath": "/w/a.rs"}));
+        assert_eq!(
+            p.tool(),
+            Some(Tool::Other {
+                name: "view_file",
+                input: &json!({"AbsolutePath": "/w/a.rs"})
+            })
+        );
     }
 }

@@ -1,6 +1,6 @@
 //! Prints the crate's known events per harness as JSON, for the drift job.
 
-use pabal::{ClaudeCodeEvent, CodexEvent, CursorEvent, EventKind};
+use pabal::{AntigravityEvent, ClaudeCodeEvent, CodexEvent, CursorEvent, EventKind};
 
 fn names<E: EventKind>() -> Vec<String> {
     let mut names: Vec<String> = E::known().iter().map(|e| e.to_string()).collect();
@@ -13,6 +13,7 @@ fn main() {
         "claude-code": names::<ClaudeCodeEvent>(),
         "codex": names::<CodexEvent>(),
         "cursor": names::<CursorEvent>(),
+        "antigravity": names::<AntigravityEvent>(),
     });
     println!("{events}");
 }

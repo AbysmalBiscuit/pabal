@@ -4,10 +4,12 @@ use serde_json::Value;
 
 use crate::{ClaudeCodeEvent, CodexEvent, CursorEvent, EventKind, Payload, Tool, payload::text};
 
+mod antigravity;
 mod claude_code;
 mod codex;
 mod cursor;
 
+pub use antigravity::Antigravity;
 pub use claude_code::ClaudeCode;
 pub use codex::Codex;
 pub use cursor::Cursor;
@@ -28,8 +30,8 @@ pub trait Harness: sealed::Sealed + Sized + 'static {
     /// The harness's event enum.
     type Event: EventKind;
 
-    /// The tool view of `call`, an object with `tool_name` and `tool_input`:
-    /// a single-tool payload, or one entry of a batch.
+    /// The tool view of `call`, in the harness's own shape: a single-tool
+    /// payload, or one entry of a batch.
     #[doc(hidden)]
     fn tool<'a>(call: &'a Value, cwd: Option<&'a Path>) -> Option<Tool<'a>>;
 
@@ -67,7 +69,8 @@ impl Keys {
 
 /// A harness chosen at runtime, from a `--harness` flag or from the payload.
 ///
-/// Its string forms are `claude-code` (alias `claude`), `codex` and `cursor`.
+/// Its string forms are `claude-code` (alias `claude`), `codex`, `cursor` and
+/// `antigravity`.
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, strum::EnumString, strum::Display, strum::IntoStaticStr,
 )]
@@ -80,11 +83,13 @@ pub enum AnyHarness {
     ClaudeCode,
     Codex,
     Cursor,
+    Antigravity,
 }
 
 impl AnyHarness {
-    /// Guesses the harness. A Cursor event name (camelCase), or any camelCase
-    /// event with `cursor_version`, means Cursor. A PascalCase event with
+    /// Guesses the harness. `conversationId` means Antigravity. A Cursor
+    /// event name (camelCase), or any camelCase event with `cursor_version`,
+    /// means Cursor. A PascalCase event with
     /// `cursor_version` comes from Cursor running a Claude Code hook and means
     /// Claude Code. Otherwise an event only one harness sends decides, then
     /// `turn_id` or `model` means Codex. A null field counts as absent.
@@ -101,6 +106,9 @@ impl AnyHarness {
     /// ```
     pub fn infer(raw: &Value) -> AnyHarness {
         let has = |key| raw.get(key).is_some_and(|v| !v.is_null());
+        if has("conversationId") {
+            return AnyHarness::Antigravity;
+        }
         let event = text(raw, "hook_event_name");
         let camel_case = event.is_some_and(|e| e.starts_with(|c: char| c.is_ascii_lowercase()));
         if knows::<CursorEvent>(event) || (camel_case && has("cursor_version")) {
@@ -146,6 +154,10 @@ mod tests {
         assert_eq!(AnyHarness::ClaudeCode.to_string(), "claude-code");
         assert_eq!(AnyHarness::Codex.to_string(), "codex");
         assert_eq!(AnyHarness::Cursor.to_string(), "cursor");
+        assert_eq!(
+            "antigravity".parse::<AnyHarness>().unwrap(),
+            AnyHarness::Antigravity
+        );
     }
 
     #[cfg(feature = "clap")]
@@ -209,6 +221,14 @@ mod tests {
         assert_eq!(AnyHarness::infer(&stripped), AnyHarness::Cursor);
         let future = json!({"hook_event_name": "beforeBrand", "cursor_version": "9.0.0"});
         assert_eq!(AnyHarness::infer(&future), AnyHarness::Cursor);
+    }
+
+    #[test]
+    fn antigravity_is_told_apart_by_its_camel_case_conversation_id() {
+        let p = json!({"conversationId": "c1", "toolCall": {"name": "run_command", "args": {}}});
+        assert_eq!(AnyHarness::infer(&p), AnyHarness::Antigravity);
+        let cursor = json!({"hook_event_name": "stop", "conversation_id": "c1"});
+        assert_eq!(AnyHarness::infer(&cursor), AnyHarness::Cursor);
     }
 
     #[test]
