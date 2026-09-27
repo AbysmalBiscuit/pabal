@@ -1,0 +1,25 @@
+{
+  "artifactDirectoryPath": "/home/user/.gemini/antigravity-cli/brain/b1aed54b-b201-4432-aaa4-c4403f2863e6",
+  "conversationId": "b1aed54b-b201-4432-aaa4-c4403f2863e6",
+  "modelName": "gemini-3.8-flash-low",
+  "stepIdx": 6,
+  "toolCall": {
+    "args": {
+      "AllowMultiple": false,
+      "Description": "Change hello to bye",
+      "EndLine": 1,
+      "Instruction": "Change hello to bye",
+      "ReplacementContent": "bye",
+      "StartLine": 1,
+      "TargetContent": "hello",
+      "TargetFile": "/home/user/project/ag-test.txt",
+      "toolAction": "Updating test file",
+      "toolSummary": "Update ag-test.txt"
+    },
+    "name": "replace_file_content"
+  },
+  "transcriptPath": "/home/user/.gemini/antigravity-cli/brain/b1aed54b-b201-4432-aaa4-c4403f2863e6/.system_generated/logs/transcript_full.jsonl",
+  "workspacePaths": [
+    "/home/user/project"
+  ]
+}

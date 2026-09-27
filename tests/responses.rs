@@ -1,6 +1,6 @@
 use pabal::{
-    AddContext, Allow, AnyHarness, AnyPayload, AnyView, Ask, ClaudeCode, Codex, Deny, Harness,
-    Payload, Response,
+    AddContext, Allow, Antigravity, AnyHarness, AnyPayload, AnyView, Ask, ClaudeCode, Codex,
+    Cursor, Deny, Harness, Payload, Response,
 };
 use serde_json::{Value, json};
 
@@ -91,58 +91,53 @@ fn context(event: &str) -> Value {
     json!({"hookSpecificOutput": {"hookEventName": event, "additionalContext": "x"}})
 }
 
-fn contexts<H>() -> Vec<(&'static str, Response)>
-where
-    H: pabal::view::HasPreToolUse
-        + pabal::view::HasPostToolUse
-        + pabal::view::HasUserPromptSubmit
-        + pabal::view::HasSessionStart
-        + pabal::view::HasSubagentStart,
-{
-    vec![
-        (
-            "PreToolUse",
-            payload::<H>("PreToolUse")
-                .pre_tool_use()
-                .unwrap()
-                .add_context("x"),
-        ),
-        (
-            "PostToolUse",
-            payload::<H>("PostToolUse")
-                .post_tool_use()
-                .unwrap()
-                .add_context("x"),
-        ),
-        (
-            "UserPromptSubmit",
-            payload::<H>("UserPromptSubmit")
-                .user_prompt_submit()
-                .unwrap()
-                .add_context("x"),
-        ),
-        (
-            "SessionStart",
-            payload::<H>("SessionStart")
-                .session_start()
-                .unwrap()
-                .add_context("x"),
-        ),
-        (
-            "SubagentStart",
-            payload::<H>("SubagentStart")
-                .subagent_start()
-                .unwrap()
-                .add_context("x"),
-        ),
-    ]
+macro_rules! contexts {
+    ($h:ty) => {
+        vec![
+            (
+                "PreToolUse",
+                payload::<$h>("PreToolUse")
+                    .pre_tool_use()
+                    .unwrap()
+                    .add_context("x"),
+            ),
+            (
+                "PostToolUse",
+                payload::<$h>("PostToolUse")
+                    .post_tool_use()
+                    .unwrap()
+                    .add_context("x"),
+            ),
+            (
+                "UserPromptSubmit",
+                payload::<$h>("UserPromptSubmit")
+                    .user_prompt_submit()
+                    .unwrap()
+                    .add_context("x"),
+            ),
+            (
+                "SessionStart",
+                payload::<$h>("SessionStart")
+                    .session_start()
+                    .unwrap()
+                    .add_context("x"),
+            ),
+            (
+                "SubagentStart",
+                payload::<$h>("SubagentStart")
+                    .subagent_start()
+                    .unwrap()
+                    .add_context("x"),
+            ),
+        ]
+    };
 }
 
 #[test]
 fn hook_specific_context() {
     let batch = payload::<ClaudeCode>("PostToolBatch");
-    let mut all = contexts::<ClaudeCode>();
-    all.extend(contexts::<Codex>());
+    let mut all = contexts!(ClaudeCode);
+    all.extend(contexts!(Codex));
     all.push((
         "PostToolBatch",
         batch.post_tool_batch().unwrap().add_context("x"),
@@ -194,7 +189,7 @@ fn the_warning_envelope_allows_without_a_permission_decision() {
     let AnyView::PreToolUse(pre) = p.view() else {
         panic!()
     };
-    let w = parsed(&pre.add_context("not checked"));
+    let w = parsed(&pre.add_context("not checked").unwrap());
     assert_eq!(w["hookSpecificOutput"]["additionalContext"], "not checked");
     assert!(w["hookSpecificOutput"].get("permissionDecision").is_none());
     let p = any(AnyHarness::Codex, "PreToolUse");
@@ -232,13 +227,127 @@ fn any_view_context_on_every_shared_context_event() {
         ] {
             let p = any(harness, event);
             let r = match p.view() {
-                AnyView::PostToolUse(v) => v.add_context("x"),
-                AnyView::UserPromptSubmit(v) => v.add_context("x"),
+                AnyView::PostToolUse(v) => v.add_context("x").unwrap(),
+                AnyView::UserPromptSubmit(v) => v.add_context("x").unwrap(),
                 AnyView::SessionStart(v) => v.add_context("x"),
-                AnyView::SubagentStart(v) => v.add_context("x"),
+                AnyView::SubagentStart(v) => v.add_context("x").unwrap(),
                 _ => panic!("{event}"),
             };
             assert_eq!(parsed(&r), context(event));
         }
     }
+}
+
+#[test]
+fn cursor_denies_with_its_permission_envelope() {
+    let expected = json!({
+        "permission": "deny",
+        "user_message": "use devrun",
+        "agent_message": "use devrun",
+    });
+    let pre = payload::<Cursor>("preToolUse");
+    let shell = payload::<Cursor>("beforeShellExecution");
+    let mcp = payload::<Cursor>("beforeMCPExecution");
+    for r in [
+        pre.pre_tool_use().unwrap().deny("use devrun"),
+        shell.before_shell_execution().unwrap().deny("use devrun"),
+        mcp.before_mcp_execution().unwrap().deny("use devrun"),
+        Response::deny_pre_tool_use(AnyHarness::Cursor, "use devrun"),
+    ] {
+        assert_eq!(parsed(&r), expected);
+    }
+    let blank = shell.before_shell_execution().unwrap().deny(" ");
+    assert!(
+        !parsed(&blank)["user_message"]
+            .as_str()
+            .unwrap()
+            .trim()
+            .is_empty()
+    );
+}
+
+#[test]
+fn cursor_asks_on_shell_execution() {
+    let shell = payload::<Cursor>("beforeShellExecution");
+    let r = shell.before_shell_execution().unwrap().ask("sure?");
+    assert_eq!(parsed(&r)["permission"], "ask");
+    assert_eq!(parsed(&r)["user_message"], "sure?");
+}
+
+#[test]
+fn cursor_context_is_a_top_level_field() {
+    let expected = json!({"additional_context": "x"});
+    let start = payload::<Cursor>("sessionStart");
+    let pre = payload::<Cursor>("preToolUse");
+    let post = payload::<Cursor>("postToolUse");
+    for r in [
+        start.session_start().unwrap().add_context("x"),
+        pre.pre_tool_use().unwrap().add_context("x"),
+        post.post_tool_use().unwrap().add_context("x"),
+    ] {
+        assert_eq!(parsed(&r), expected);
+    }
+    let p = any(AnyHarness::Cursor, "sessionStart");
+    let AnyView::SessionStart(v) = p.view() else {
+        panic!()
+    };
+    assert_eq!(parsed(&v.add_context("x")), expected);
+}
+
+#[test]
+fn any_view_offers_cursor_only_what_it_honors() {
+    let p = any(AnyHarness::Cursor, "preToolUse");
+    let AnyView::PreToolUse(pre) = p.view() else {
+        panic!()
+    };
+    assert_eq!(parsed(&pre.deny("no"))["permission"], "deny");
+    assert_eq!(pre.ask("sure?"), None);
+    assert_eq!(pre.allow_skipping_prompt(), None);
+    assert_eq!(
+        pre.add_context("x").map(|r| parsed(&r)),
+        Some(json!({"additional_context": "x"}))
+    );
+    for event in ["beforeSubmitPrompt", "subagentStart"] {
+        let p = any(AnyHarness::Cursor, event);
+        let r = match p.view() {
+            AnyView::UserPromptSubmit(v) => v.add_context("x"),
+            AnyView::SubagentStart(v) => v.add_context("x"),
+            _ => panic!("{event}"),
+        };
+        assert_eq!(r, None, "{event}");
+    }
+}
+
+#[test]
+fn antigravity_decides_with_its_decision_envelope() {
+    let p = payload::<Antigravity>("PreToolUse");
+    let pre = p.pre_tool_use().unwrap();
+    assert_eq!(
+        parsed(&pre.deny("use devrun")),
+        json!({"decision": "deny", "reason": "use devrun"})
+    );
+    assert_eq!(
+        parsed(&pre.ask("sure?")),
+        json!({"decision": "ask", "reason": "sure?"})
+    );
+    assert_eq!(
+        Response::deny_pre_tool_use(AnyHarness::Antigravity, "use devrun"),
+        pre.deny("use devrun")
+    );
+}
+
+#[test]
+fn any_view_offers_antigravity_only_what_it_honors() {
+    let p = AnyPayload::parse_named(AnyHarness::Antigravity, "PreToolUse", "{}").unwrap();
+    let AnyView::PreToolUse(pre) = p.view() else {
+        panic!()
+    };
+    assert_eq!(parsed(&pre.ask("sure?").unwrap())["decision"], "ask");
+    assert_eq!(pre.allow_skipping_prompt(), None);
+    assert_eq!(pre.add_context("x"), None);
+    let p = AnyPayload::parse_named(AnyHarness::Antigravity, "PostToolUse", "{}").unwrap();
+    let AnyView::PostToolUse(post) = p.view() else {
+        panic!()
+    };
+    assert_eq!(post.add_context("x"), None);
 }

@@ -2,11 +2,11 @@ use std::path::Path;
 
 use serde_json::Value;
 
-use super::{AnyHarness, Harness, sealed};
+use super::{AnyHarness, Harness, Keys, sealed};
 use crate::{
     CodexEvent, Payload, Tool,
     payload::text,
-    tool::input,
+    tool::field,
     view::{
         CodexView, PermissionRequest, PostCompact, PostToolUse, PreCompact, PreToolUse, Raw,
         SessionEnd, SessionStart, Stop, SubagentStart, SubagentStop, UserPromptSubmit,
@@ -23,15 +23,16 @@ impl Harness for Codex {
     type Event = CodexEvent;
     type View<'a> = CodexView<'a>;
 
+    const KEYS: Keys = Keys::SNAKE_CASE;
     const KIND: AnyHarness = AnyHarness::Codex;
 
     fn tool<'a>(call: &'a Value, cwd: Option<&'a Path>) -> Option<Tool<'a>> {
         let name = text(call, "tool_name")?;
-        let input = input(call);
+        let input = field(call, "tool_input");
         let known = match name {
             // Codex names every shell tool `Bash` in hook payloads, so the
             // name says nothing about the shell.
-            "Bash" => Tool::shell(input, cwd, None),
+            "Bash" => Tool::shell(input, "command", cwd, None),
             "apply_patch" => Tool::patch(input),
             _ => Tool::mcp(name, None, input),
         };

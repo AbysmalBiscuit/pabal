@@ -6,8 +6,8 @@ use std::ops::Deref;
 use serde_json::Value;
 
 use crate::{
-    AnyEvent, AnyPayload, ClaudeCode, Codex, EventKind, Fields, Harness, Payload, ToolCall,
-    payload::text,
+    Antigravity, AnyEvent, AnyPayload, ClaudeCode, Codex, Cursor, CursorEvent, EventKind, Fields,
+    Harness, Payload, ToolCall, payload::text,
 };
 
 /// A view of an event this crate does not model; the payload is all it has.
@@ -23,7 +23,7 @@ impl<H: Harness> Deref for Raw<'_, H> {
 }
 
 macro_rules! shared_views {
-    ($($name:ident $any:ident $has:ident $short:ident;)*) => {
+    ($($name:ident $any:ident $has:ident $short:ident [$($h:ident)*];)*) => {
         $(
             #[doc = concat!("A `", stringify!($name), "` payload.")]
             #[derive(Debug, Clone, Copy)]
@@ -38,8 +38,7 @@ macro_rules! shared_views {
 
             #[doc = concat!("A harness that sends `", stringify!($name), "`.")]
             pub trait $has: Harness {}
-            impl $has for ClaudeCode {}
-            impl $has for Codex {}
+            $(impl $has for $h {})*
 
             impl<H: $has> Payload<H> {
                 #[doc = concat!("This payload as `", stringify!($name), "`, if it is one.")]
@@ -48,46 +47,41 @@ macro_rules! shared_views {
                 }
             }
 
-            #[doc = concat!("A `", stringify!($name), "` view from either harness.")]
+            #[doc = concat!("A `", stringify!($name), "` view from any harness that sends it.")]
             #[derive(Debug, Clone, Copy)]
             #[allow(missing_docs, reason = "each variant is its harness")]
             pub enum $any<'a> {
-                ClaudeCode($name<'a, ClaudeCode>),
-                Codex($name<'a, Codex>),
+                $($h($name<'a, $h>),)*
             }
 
             impl<'a> $any<'a> {
                 /// The payload's accessors, whatever its harness.
                 pub fn fields(&self) -> &'a dyn Fields {
                     match self {
-                        Self::ClaudeCode(v) => v.0,
-                        Self::Codex(v) => v.0,
+                        $(Self::$h(v) => v.0,)*
                     }
                 }
             }
         )*
 
-        /// A payload narrowed to an event every harness sends.
+        /// A payload narrowed to an event several harnesses send.
         #[derive(Debug, Clone, Copy)]
         #[allow(missing_docs, reason = "each variant is its wire name")]
         pub enum AnyView<'a> {
             $($name($any<'a>),)*
-            /// An event only some harnesses send, or one this crate does not know.
+            /// An event only one harness sends, or one this crate does not
+            /// know.
             Other(&'a AnyPayload),
         }
 
         impl AnyPayload {
             /// Narrows the payload to its event's view.
             pub fn view(&self) -> AnyView<'_> {
-                match self {
-                    AnyPayload::ClaudeCode(p) => match p.event().to_any() {
-                        $(AnyEvent::$name => AnyView::$name($any::ClaudeCode($name(p))),)*
-                        AnyEvent::Other(_) => AnyView::Other(self),
-                    },
-                    AnyPayload::Codex(p) => match p.event().to_any() {
-                        $(AnyEvent::$name => AnyView::$name($any::Codex($name(p))),)*
-                        AnyEvent::Other(_) => AnyView::Other(self),
-                    },
+                match (self, self.any_event()) {
+                    $($((AnyPayload::$h(p), AnyEvent::$name) => {
+                        AnyView::$name($any::$h($name(p)))
+                    })*)*
+                    _ => AnyView::Other(self),
                 }
             }
         }
@@ -95,17 +89,48 @@ macro_rules! shared_views {
 }
 
 shared_views! {
-    SessionStart AnySessionStart HasSessionStart session_start;
-    SessionEnd AnySessionEnd HasSessionEnd session_end;
-    UserPromptSubmit AnyUserPromptSubmit HasUserPromptSubmit user_prompt_submit;
-    PreToolUse AnyPreToolUse HasPreToolUse pre_tool_use;
-    PostToolUse AnyPostToolUse HasPostToolUse post_tool_use;
-    PermissionRequest AnyPermissionRequest HasPermissionRequest permission_request;
-    SubagentStart AnySubagentStart HasSubagentStart subagent_start;
-    SubagentStop AnySubagentStop HasSubagentStop subagent_stop;
-    Stop AnyStop HasStop stop;
-    PreCompact AnyPreCompact HasPreCompact pre_compact;
-    PostCompact AnyPostCompact HasPostCompact post_compact;
+    SessionStart AnySessionStart HasSessionStart session_start [ClaudeCode Codex Cursor];
+    SessionEnd AnySessionEnd HasSessionEnd session_end [ClaudeCode Codex Cursor];
+    UserPromptSubmit AnyUserPromptSubmit HasUserPromptSubmit user_prompt_submit
+        [ClaudeCode Codex Cursor];
+    PreToolUse AnyPreToolUse HasPreToolUse pre_tool_use [ClaudeCode Codex Cursor Antigravity];
+    PostToolUse AnyPostToolUse HasPostToolUse post_tool_use
+        [ClaudeCode Codex Cursor Antigravity];
+    PermissionRequest AnyPermissionRequest HasPermissionRequest permission_request
+        [ClaudeCode Codex];
+    SubagentStart AnySubagentStart HasSubagentStart subagent_start [ClaudeCode Codex Cursor];
+    SubagentStop AnySubagentStop HasSubagentStop subagent_stop [ClaudeCode Codex Cursor];
+    Stop AnyStop HasStop stop [ClaudeCode Codex Cursor Antigravity];
+    PreCompact AnyPreCompact HasPreCompact pre_compact [ClaudeCode Codex Cursor];
+    PostCompact AnyPostCompact HasPostCompact post_compact [ClaudeCode Codex];
+}
+
+macro_rules! harness_views {
+    ($($harness:ident $event:ident $wire:literal $name:ident $short:ident;)*) => {$(
+        #[doc = concat!("A ", stringify!($harness), " `", $wire, "` payload.")]
+        #[derive(Debug, Clone, Copy)]
+        pub struct $name<'a>(pub(crate) &'a Payload<$harness>);
+
+        impl Deref for $name<'_> {
+            type Target = Payload<$harness>;
+
+            fn deref(&self) -> &Payload<$harness> {
+                self.0
+            }
+        }
+
+        impl Payload<$harness> {
+            #[doc = concat!("This payload as `", $wire, "`, if it is one.")]
+            pub fn $short(&self) -> Option<$name<'_>> {
+                matches!(self.event(), $event::$name).then_some($name(self))
+            }
+        }
+    )*};
+}
+
+harness_views! {
+    Cursor CursorEvent "beforeShellExecution" BeforeShellExecution before_shell_execution;
+    Cursor CursorEvent "beforeMCPExecution" BeforeMcpExecution before_mcp_execution;
 }
 
 /// A Claude Code `PostToolBatch` payload: several tool calls at once.
@@ -220,6 +245,47 @@ pub enum CodexView<'a> {
     Other(Raw<'a, Codex>),
 }
 
+/// A Cursor payload narrowed to its event. `beforeSubmitPrompt` is Cursor's
+/// `UserPromptSubmit`.
+#[derive(Debug, Clone, Copy)]
+#[allow(missing_docs, reason = "each variant is its wire name")]
+pub enum CursorView<'a> {
+    SessionStart(SessionStart<'a, Cursor>),
+    SessionEnd(SessionEnd<'a, Cursor>),
+    PreToolUse(PreToolUse<'a, Cursor>),
+    PostToolUse(PostToolUse<'a, Cursor>),
+    PostToolUseFailure(Raw<'a, Cursor>),
+    SubagentStart(SubagentStart<'a, Cursor>),
+    SubagentStop(SubagentStop<'a, Cursor>),
+    BeforeShellExecution(BeforeShellExecution<'a>),
+    AfterShellExecution(Raw<'a, Cursor>),
+    BeforeMcpExecution(BeforeMcpExecution<'a>),
+    AfterMcpExecution(Raw<'a, Cursor>),
+    BeforeReadFile(Raw<'a, Cursor>),
+    AfterFileEdit(Raw<'a, Cursor>),
+    BeforeSubmitPrompt(UserPromptSubmit<'a, Cursor>),
+    PreCompact(PreCompact<'a, Cursor>),
+    Stop(Stop<'a, Cursor>),
+    AfterAgentResponse(Raw<'a, Cursor>),
+    AfterAgentThought(Raw<'a, Cursor>),
+    BeforeTabFileRead(Raw<'a, Cursor>),
+    AfterTabFileEdit(Raw<'a, Cursor>),
+    WorkspaceOpen(Raw<'a, Cursor>),
+    Other(Raw<'a, Cursor>),
+}
+
+/// An Antigravity payload narrowed to its event.
+#[derive(Debug, Clone, Copy)]
+#[allow(missing_docs, reason = "each variant is its config name")]
+pub enum AntigravityView<'a> {
+    PreToolUse(PreToolUse<'a, Antigravity>),
+    PostToolUse(PostToolUse<'a, Antigravity>),
+    PreInvocation(Raw<'a, Antigravity>),
+    PostInvocation(Raw<'a, Antigravity>),
+    Stop(Stop<'a, Antigravity>),
+    Other(Raw<'a, Antigravity>),
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -291,6 +357,34 @@ mod tests {
         };
         assert!(matches!(pre, AnyPreToolUse::Codex(_)));
         assert_eq!(pre.fields().session_id(), Some("s"));
+    }
+
+    #[test]
+    fn cursor_before_submit_prompt_is_its_user_prompt_submit() {
+        let p = AnyPayload::parse(
+            AnyHarness::Cursor,
+            r#"{"hook_event_name":"beforeSubmitPrompt"}"#,
+        )
+        .unwrap();
+        assert!(matches!(
+            p.view(),
+            AnyView::UserPromptSubmit(AnyUserPromptSubmit::Cursor(_))
+        ));
+        let AnyPayload::Cursor(c) = &p else { panic!() };
+        assert!(matches!(c.view(), CursorView::BeforeSubmitPrompt(_)));
+        assert!(c.user_prompt_submit().is_some());
+    }
+
+    #[test]
+    fn cursor_shell_events_narrow_to_their_own_views() {
+        let p = Payload::<Cursor>::parse(
+            r#"{"hook_event_name":"beforeShellExecution","command":"ls","cwd":"/w"}"#,
+        )
+        .unwrap();
+        assert!(matches!(p.view(), CursorView::BeforeShellExecution(_)));
+        assert!(p.before_shell_execution().is_some() && p.before_mcp_execution().is_none());
+        let any = AnyPayload::Cursor(p);
+        assert!(matches!(any.view(), AnyView::Other(_)));
     }
 
     #[test]

@@ -1,0 +1,21 @@
+{
+  "conversation_id": "262a9ab5-c135-4f9e-afe5-4e674e603d7b",
+  "generation_id": "e9d42a4d-a2ec-44ce-b1bd-b0dc4837e5ea",
+  "model": "default",
+  "tool_name": "Write",
+  "tool_input": {
+    "file_path": "/home/user/project/cursor-test.txt",
+    "content": "hello\n"
+  },
+  "tool_output": "{\"file_path\":\"/home/user/project/cursor-test.txt\",\"success\":true}",
+  "duration": 590.274,
+  "tool_use_id": "call-514efe56-540a-4b6e-9256-12b650c5a01a-1\nfc_d34afc62-cc95-9487-a46a-d49e73aa6b46_0",
+  "session_id": "262a9ab5-c135-4f9e-afe5-4e674e603d7b",
+  "hook_event_name": "postToolUse",
+  "cursor_version": "2026.09.26-dd393fe",
+  "workspace_roots": [
+    "/home/user/project"
+  ],
+  "user_email": "user@example.com",
+  "transcript_path": "/home/user/.cursor/projects/home-user-project/agent-transcripts/262a9ab5-c135-4f9e-afe5-4e674e603d7b/262a9ab5-c135-4f9e-afe5-4e674e603d7b.jsonl"
+}

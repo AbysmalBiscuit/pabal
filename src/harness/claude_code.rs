@@ -2,11 +2,11 @@ use std::path::Path;
 
 use serde_json::Value;
 
-use super::{AnyHarness, Harness, sealed};
+use super::{AnyHarness, Harness, Keys, sealed};
 use crate::{
     ClaudeCodeEvent, Payload, ShellKind, Tool,
     payload::text,
-    tool::input,
+    tool::field,
     view::{
         ClaudeCodeView, PermissionRequest, PostCompact, PostToolBatch, PostToolUse, PreCompact,
         PreToolUse, Raw, SessionEnd, SessionStart, Stop, SubagentStart, SubagentStop,
@@ -24,14 +24,15 @@ impl Harness for ClaudeCode {
     type Event = ClaudeCodeEvent;
     type View<'a> = ClaudeCodeView<'a>;
 
+    const KEYS: Keys = Keys::SNAKE_CASE;
     const KIND: AnyHarness = AnyHarness::ClaudeCode;
 
     fn tool<'a>(call: &'a Value, cwd: Option<&'a Path>) -> Option<Tool<'a>> {
         let name = text(call, "tool_name")?;
-        let input = input(call);
+        let input = field(call, "tool_input");
         let known = match name {
-            "Bash" => Tool::shell(input, cwd, Some(ShellKind::Bash)),
-            "PowerShell" => Tool::shell(input, cwd, Some(ShellKind::PowerShell)),
+            "Bash" => Tool::shell(input, "command", cwd, Some(ShellKind::Bash)),
+            "PowerShell" => Tool::shell(input, "command", cwd, Some(ShellKind::PowerShell)),
             "Edit" | "Write" | "MultiEdit" => Tool::write(input, "file_path"),
             "NotebookEdit" => Tool::write(input, "notebook_path"),
             _ => {

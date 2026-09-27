@@ -1,0 +1,21 @@
+{
+  "artifactDirectoryPath": "/home/user/.gemini/antigravity-cli/brain/b1aed54b-b201-4432-aaa4-c4403f2863e6",
+  "conversationId": "b1aed54b-b201-4432-aaa4-c4403f2863e6",
+  "error": "",
+  "modelName": "gemini-3.8-flash-low",
+  "stepIdx": 2,
+  "toolCall": {
+    "args": {
+      "CommandLine": "ls",
+      "Cwd": "/home/user/project",
+      "WaitMsBeforeAsync": 5000,
+      "toolAction": "Listing directory contents",
+      "toolSummary": "Run ls"
+    },
+    "name": "run_command"
+  },
+  "transcriptPath": "/home/user/.gemini/antigravity-cli/brain/b1aed54b-b201-4432-aaa4-c4403f2863e6/.system_generated/logs/transcript_full.jsonl",
+  "workspacePaths": [
+    "/home/user/project"
+  ]
+}

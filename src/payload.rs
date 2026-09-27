@@ -2,7 +2,9 @@ use std::{marker::PhantomData, path::Path};
 
 use serde_json::Value;
 
-use crate::{AnyEvent, AnyHarness, ClaudeCode, Codex, Error, EventKind, Harness, Tool};
+use crate::{
+    Antigravity, AnyEvent, AnyHarness, ClaudeCode, Codex, Cursor, Error, EventKind, Harness, Tool,
+};
 
 /// A hook payload from harness `H`: its event and the raw JSON.
 #[derive(Debug, Clone)]
@@ -25,12 +27,30 @@ impl<H: Harness> Payload<H> {
         Self::from_value(serde_json::from_str(stdin)?)
     }
 
+    /// Parses hook stdin from a harness that leaves the event out of the
+    /// payload, such as Antigravity. `event` names it, typically from a flag
+    /// the hook's config passes; a `hook_event_name` in the payload still
+    /// wins. The raw payload stays as sent.
+    ///
+    /// ```
+    /// use pabal::{Antigravity, AntigravityEvent, Payload};
+    /// let p = Payload::<Antigravity>::parse_named("Stop", r#"{"conversationId":"c1"}"#).unwrap();
+    /// assert_eq!(p.event(), &AntigravityEvent::Stop);
+    /// ```
+    pub fn parse_named(event: &str, stdin: &str) -> Result<Self, Error> {
+        Self::new(serde_json::from_str(stdin)?, event)
+    }
+
     /// Wraps an already parsed payload. Fails only when it is not an object.
     pub fn from_value(raw: Value) -> Result<Self, Error> {
+        Self::new(raw, "")
+    }
+
+    fn new(raw: Value, event: &str) -> Result<Self, Error> {
         if !raw.is_object() {
             return Err(Error::NotObject);
         }
-        let event = H::Event::from(text(&raw, "hook_event_name").unwrap_or(""));
+        let event = H::Event::from(text(&raw, "hook_event_name").unwrap_or(event));
         Ok(Self {
             event,
             raw,
@@ -51,32 +71,36 @@ impl<H: Harness> Payload<H> {
 
 /// The accessors every payload has, whatever its harness.
 ///
-/// An absent field, a JSON `null`, a wrong-typed value and an empty string
-/// all read as `None`.
+/// Each reads the harness's own spelling of the field. An absent field, a JSON
+/// `null`, a wrong-typed value and an empty string all read as `None`.
 #[ambassador::delegatable_trait]
 pub trait Fields {
     /// The harness that sent the payload.
     fn harness(&self) -> AnyHarness;
     /// The event in its harness-independent form.
     fn any_event(&self) -> AnyEvent;
-    /// The `hook_event_name` as sent, including events this crate does not
-    /// know.
+    /// The `hook_event_name` as sent, or as named to
+    /// [`Payload::parse_named`], including events this crate does not know.
     fn event_name(&self) -> String;
-    /// The `session_id`.
+    /// The `session_id`. Cursor sends it only on `sessionStart` and
+    /// `sessionEnd`, equal to `conversation_id`, so on Cursor this falls back
+    /// to `conversation_id`.
     fn session_id(&self) -> Option<&str>;
     /// The `cwd`, verbatim.
     fn cwd(&self) -> Option<&Path>;
     /// The `transcript_path`, verbatim.
     fn transcript_path(&self) -> Option<&Path>;
-    /// The raw `agent_id`, set for subagents and for Claude Code forks alike.
+    /// The raw `agent_id` (Cursor: `subagent_id`), set for subagents and for
+    /// Claude Code forks alike.
     fn agent_id(&self) -> Option<&str>;
-    /// The subagent this payload speaks for: `agent_id` when `agent_type` is
-    /// also set. A Claude Code fork has no `agent_type` and speaks for its
-    /// session.
+    /// The subagent this payload speaks for: `agent_id` when `agent_type`
+    /// (Cursor: `subagent_type`) is also set. A Claude Code fork has no
+    /// `agent_type` and speaks for its session.
     fn agent(&self) -> Option<&str>;
     /// The `tool_use_id` of a single-tool event.
     fn tool_use_id(&self) -> Option<&str>;
-    /// The tool call of a single-tool event; `None` without a `tool_name`.
+    /// The tool call of a single-tool event; `None` when the payload names no
+    /// tool.
     fn tool(&self) -> Option<Tool<'_>>;
     /// The payload as parsed, for fields this crate does not model.
     fn raw(&self) -> &Value;
@@ -96,27 +120,27 @@ impl<H: Harness> Fields for Payload<H> {
     }
 
     fn session_id(&self) -> Option<&str> {
-        text(&self.raw, "session_id")
+        first(&self.raw, H::KEYS.session_id)
     }
 
     fn cwd(&self) -> Option<&Path> {
-        text(&self.raw, "cwd").map(Path::new)
+        first(&self.raw, H::KEYS.cwd).map(Path::new)
     }
 
     fn transcript_path(&self) -> Option<&Path> {
-        text(&self.raw, "transcript_path").map(Path::new)
+        first(&self.raw, H::KEYS.transcript_path).map(Path::new)
     }
 
     fn agent_id(&self) -> Option<&str> {
-        text(&self.raw, "agent_id")
+        first(&self.raw, H::KEYS.agent_id)
     }
 
     fn agent(&self) -> Option<&str> {
-        text(&self.raw, "agent_type").and(text(&self.raw, "agent_id"))
+        first(&self.raw, H::KEYS.agent_type).and(self.agent_id())
     }
 
     fn tool_use_id(&self) -> Option<&str> {
-        text(&self.raw, "tool_use_id")
+        first(&self.raw, H::KEYS.tool_use_id)
     }
 
     fn tool(&self) -> Option<Tool<'_>> {
@@ -135,6 +159,8 @@ impl<H: Harness> Fields for Payload<H> {
 pub enum AnyPayload {
     ClaudeCode(Payload<ClaudeCode>),
     Codex(Payload<Codex>),
+    Cursor(Payload<Cursor>),
+    Antigravity(Payload<Antigravity>),
 }
 
 impl AnyPayload {
@@ -143,11 +169,23 @@ impl AnyPayload {
         Self::from_value(harness, serde_json::from_str(stdin)?)
     }
 
+    /// Parses hook stdin as coming from `harness`, naming its event as
+    /// [`Payload::parse_named`] does.
+    pub fn parse_named(harness: AnyHarness, event: &str, stdin: &str) -> Result<Self, Error> {
+        Self::new(harness, serde_json::from_str(stdin)?, event)
+    }
+
     /// Wraps an already parsed payload from `harness`.
     pub fn from_value(harness: AnyHarness, raw: Value) -> Result<Self, Error> {
+        Self::new(harness, raw, "")
+    }
+
+    fn new(harness: AnyHarness, raw: Value, event: &str) -> Result<Self, Error> {
         Ok(match harness {
-            AnyHarness::ClaudeCode => Self::ClaudeCode(Payload::from_value(raw)?),
-            AnyHarness::Codex => Self::Codex(Payload::from_value(raw)?),
+            AnyHarness::ClaudeCode => Self::ClaudeCode(Payload::new(raw, event)?),
+            AnyHarness::Codex => Self::Codex(Payload::new(raw, event)?),
+            AnyHarness::Cursor => Self::Cursor(Payload::new(raw, event)?),
+            AnyHarness::Antigravity => Self::Antigravity(Payload::new(raw, event)?),
         })
     }
 
@@ -167,6 +205,11 @@ impl AnyPayload {
 /// A non-empty string field, else `None`.
 pub(crate) fn text<'a>(v: &'a Value, key: &str) -> Option<&'a str> {
     v.get(key)?.as_str().filter(|s| !s.is_empty())
+}
+
+/// The first of `keys` that holds a non-empty string.
+fn first<'a>(v: &'a Value, keys: &[&str]) -> Option<&'a str> {
+    keys.iter().find_map(|key| text(v, key))
 }
 
 #[cfg(test)]
@@ -242,6 +285,49 @@ mod tests {
         assert_eq!(sub.agent(), Some("a1"));
         let blank = Payload::<Codex>::parse(r#"{"agent_id":"a1","agent_type":""}"#).unwrap();
         assert_eq!(blank.agent(), None);
+    }
+
+    #[test]
+    fn cursor_reads_its_own_spellings() {
+        let tool = Payload::<Cursor>::parse(
+            r#"{"hook_event_name":"preToolUse","conversation_id":"c1","cwd":"/w","tool_use_id":"t1"}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            (tool.session_id(), tool.cwd(), tool.tool_use_id()),
+            (Some("c1"), Some(Path::new("/w")), Some("t1"))
+        );
+        let start = Payload::<Cursor>::parse(
+            r#"{"hook_event_name":"subagentStart","conversation_id":"c1","session_id":"s1",
+                "subagent_id":"a1","subagent_type":"explore","parent_conversation_id":"c1"}"#,
+        )
+        .unwrap();
+        assert_eq!(start.session_id(), Some("s1"));
+        assert_eq!((start.agent_id(), start.agent()), (Some("a1"), Some("a1")));
+        let stop = Payload::<Cursor>::parse(
+            r#"{"hook_event_name":"subagentStop","subagent_type":"explore"}"#,
+        )
+        .unwrap();
+        assert_eq!(stop.agent(), None);
+    }
+
+    #[test]
+    fn a_named_event_fills_in_only_a_missing_hook_event_name() {
+        let named = AnyPayload::parse_named(
+            AnyHarness::Antigravity,
+            "PreToolUse",
+            r#"{"conversationId":"c1","transcriptPath":"/t.jsonl"}"#,
+        )
+        .unwrap();
+        assert_eq!(named.any_event(), AnyEvent::PreToolUse);
+        assert!(named.raw().get("hook_event_name").is_none());
+        assert_eq!(
+            (named.session_id(), named.transcript_path()),
+            (Some("c1"), Some(Path::new("/t.jsonl")))
+        );
+        let sent =
+            Payload::<Codex>::parse_named("Stop", r#"{"hook_event_name":"SessionStart"}"#).unwrap();
+        assert_eq!(sent.event(), &CodexEvent::SessionStart);
     }
 
     #[test]

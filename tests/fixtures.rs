@@ -1,7 +1,8 @@
 use std::path::{Path, PathBuf};
 
 use pabal::{
-    AnyHarness, AnyPayload, ClaudeCode, ClaudeCodeView, CodexView, Edit, Fields, Payload, Tool,
+    AntigravityView, AnyHarness, AnyPayload, ClaudeCode, ClaudeCodeView, CodexView, CursorView,
+    Edit, Fields, Payload, Tool,
 };
 use serde_json::Value;
 
@@ -9,11 +10,19 @@ fn root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures")
 }
 
+/// A fixture's directory names its event, which Antigravity payloads do not
+/// carry themselves.
 struct Fixture {
     harness: AnyHarness,
     event: String,
     path: PathBuf,
     text: String,
+}
+
+impl Fixture {
+    fn parse(&self) -> Result<AnyPayload, pabal::Error> {
+        AnyPayload::parse_named(self.harness, &self.event, &self.text)
+    }
 }
 
 fn dirs(path: &Path) -> Vec<PathBuf> {
@@ -74,6 +83,8 @@ fn is_other(payload: &AnyPayload) -> bool {
     match payload {
         AnyPayload::ClaudeCode(p) => matches!(p.view(), ClaudeCodeView::Other(_)),
         AnyPayload::Codex(p) => matches!(p.view(), CodexView::Other(_)),
+        AnyPayload::Cursor(p) => matches!(p.view(), CursorView::Other(_)),
+        AnyPayload::Antigravity(p) => matches!(p.view(), AntigravityView::Other(_)),
     }
 }
 
@@ -82,7 +93,7 @@ fn every_fixture_parses_infers_and_narrows() {
     let mut failures = Vec::new();
     for f in fixtures() {
         let name = name(&f.path);
-        let payload = match AnyPayload::parse(f.harness, &f.text) {
+        let payload = match f.parse() {
             Ok(p) => p,
             Err(e) => {
                 failures.push(format!("{name}: {e}"));
@@ -157,6 +168,28 @@ fn every_consumer_event_has_a_fixture() {
             "PostCompact",
             "SessionEnd",
         ]),
+        ("cursor", &[
+            "sessionStart",
+            "sessionEnd",
+            "preToolUse",
+            "postToolUse",
+            "postToolUseFailure",
+            "subagentStart",
+            "subagentStop",
+            "beforeShellExecution",
+            "beforeMCPExecution",
+            "beforeSubmitPrompt",
+            "preCompact",
+            "stop",
+            "workspaceOpen",
+        ]),
+        ("antigravity", &[
+            "PreToolUse",
+            "PostToolUse",
+            "PreInvocation",
+            "PostInvocation",
+            "Stop",
+        ]),
     ];
     let mut missing = Vec::new();
     for (harness, events) in expected {
@@ -187,6 +220,10 @@ fn kind(tool: Option<Tool>) -> String {
 #[test]
 fn every_tool_fixture_gives_its_tool_view() {
     let expected = [
+        ("antigravity/PostToolUse/run-command.json", "shell -"),
+        ("antigravity/PreToolUse/replace-file-content.json", "write"),
+        ("antigravity/PreToolUse/run-command.json", "shell -"),
+        ("antigravity/PreToolUse/write-to-file.json", "write"),
         ("claude-code/PermissionDenied/docs.json", "shell Bash"),
         ("claude-code/PermissionRequest/docs.json", "shell Bash"),
         ("claude-code/PostToolUse/docs.json", "write"),
@@ -205,17 +242,38 @@ fn every_tool_fixture_gives_its_tool_view() {
         ("codex/PreToolUse/apply-patch.json", "patch"),
         ("codex/PreToolUse/bash.json", "shell -"),
         ("codex/PreToolUse/mcp.json", "mcp memory/create_entities"),
+        (
+            "cursor/afterMCPExecution/docs.json",
+            "mcp linear/save_issue",
+        ),
+        ("cursor/afterShellExecution/cli.json", "shell -"),
+        (
+            "cursor/beforeMCPExecution/docs.json",
+            "mcp linear/save_issue",
+        ),
+        ("cursor/beforeShellExecution/cli.json", "shell -"),
+        ("cursor/postToolUse/shell.json", "shell -"),
+        ("cursor/postToolUse/write.json", "write"),
+        ("cursor/postToolUseFailure/denied-shell.json", "shell -"),
+        ("cursor/postToolUseFailure/read.json", "other Read"),
+        ("cursor/preToolUse/delete.json", "other Delete"),
+        ("cursor/preToolUse/read.json", "other Read"),
+        ("cursor/preToolUse/shell.json", "shell -"),
+        ("cursor/preToolUse/write.json", "write"),
     ];
     let mut failures = Vec::new();
     for f in fixtures() {
         let name = name(&f.path);
-        let payload = AnyPayload::parse(f.harness, &f.text).unwrap();
+        let payload = f.parse().unwrap();
         let got = kind(payload.tool());
         let want = expected
             .iter()
             .find(|(path, _)| *path == name)
             .map(|(_, k)| *k);
-        if payload.raw().get("tool_name").is_some() && want.is_none() {
+        let names_a_tool = ["tool_name", "toolCall"]
+            .iter()
+            .any(|key| payload.raw().get(key).is_some());
+        if names_a_tool && want.is_none() {
             failures.push(format!("{name}: {got}, not in the table"));
         } else if want.is_some_and(|want| want != got) {
             failures.push(format!("{name}: {got}"));

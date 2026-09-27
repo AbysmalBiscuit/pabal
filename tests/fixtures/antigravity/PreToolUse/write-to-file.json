@@ -1,0 +1,21 @@
+{
+  "artifactDirectoryPath": "/home/user/.gemini/antigravity-cli/brain/b1aed54b-b201-4432-aaa4-c4403f2863e6",
+  "conversationId": "b1aed54b-b201-4432-aaa4-c4403f2863e6",
+  "modelName": "gemini-3.8-flash-low",
+  "stepIdx": 4,
+  "toolCall": {
+    "args": {
+      "CodeContent": "hello\n",
+      "Description": "Create ag-test.txt with hello",
+      "Overwrite": true,
+      "TargetFile": "/home/user/project/ag-test.txt",
+      "toolAction": "Creating test file",
+      "toolSummary": "Create ag-test.txt"
+    },
+    "name": "write_to_file"
+  },
+  "transcriptPath": "/home/user/.gemini/antigravity-cli/brain/b1aed54b-b201-4432-aaa4-c4403f2863e6/.system_generated/logs/transcript_full.jsonl",
+  "workspacePaths": [
+    "/home/user/project"
+  ]
+}

@@ -12,8 +12,12 @@ A hook command reads a JSON payload on stdin and may answer with JSON on stdout.
 |---|---|---|
 | Claude Code | `ClaudeCode` | `claude-code` (alias `claude`) |
 | Codex | `Codex` | `codex` |
+| Cursor | `Cursor` | `cursor` |
+| Google Antigravity | `Antigravity` | `antigravity` |
 
-Cursor is planned.
+The Cursor CLI also runs hooks configured for Claude Code, and sends them its own payloads; those parse as `Cursor`.
+
+Antigravity leaves the event out of its payload. Have each hook command in `hooks.json` name its event, for example `my-hook --event PreToolUse`, and parse with `Payload::<Antigravity>::parse_named(event, stdin)`.
 
 ## Example
 

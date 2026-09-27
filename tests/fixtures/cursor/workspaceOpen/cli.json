@@ -1,0 +1,8 @@
+{
+  "hook_event_name": "workspaceOpen",
+  "cursor_version": "2026.09.26-dd393fe",
+  "workspace_roots": [
+    "/home/user/project"
+  ],
+  "user_email": "user@example.com"
+}
