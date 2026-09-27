@@ -72,7 +72,41 @@ pub enum CodexEvent {
     Other(String),
 }
 
-/// An event every harness sends, or `Other` with the harness's own name.
+/// A Cursor hook event, named as Cursor sends `hook_event_name`: camelCase,
+/// with `MCP` in capitals.
+#[derive(Debug, Clone, PartialEq, Eq, strum::EnumString, strum::Display, strum::EnumIter)]
+#[strum(serialize_all = "camelCase")]
+#[allow(missing_docs, reason = "each variant is its wire name")]
+pub enum CursorEvent {
+    SessionStart,
+    SessionEnd,
+    PreToolUse,
+    PostToolUse,
+    PostToolUseFailure,
+    SubagentStart,
+    SubagentStop,
+    BeforeShellExecution,
+    AfterShellExecution,
+    #[strum(to_string = "beforeMCPExecution")]
+    BeforeMcpExecution,
+    #[strum(to_string = "afterMCPExecution")]
+    AfterMcpExecution,
+    BeforeReadFile,
+    AfterFileEdit,
+    BeforeSubmitPrompt,
+    PreCompact,
+    Stop,
+    AfterAgentResponse,
+    AfterAgentThought,
+    BeforeTabFileRead,
+    AfterTabFileEdit,
+    WorkspaceOpen,
+    /// An event this version does not know, with its wire name.
+    #[strum(default)]
+    Other(String),
+}
+
+/// An event several harnesses send, or `Other` with the harness's own name.
 #[derive(Debug, Clone, PartialEq, Eq, strum::Display)]
 #[allow(missing_docs, reason = "each variant is its wire name")]
 pub enum AnyEvent {
@@ -91,14 +125,20 @@ pub enum AnyEvent {
     Other(String),
 }
 
+macro_rules! known {
+    () => {
+        fn known() -> Vec<Self> {
+            <Self as strum::IntoEnumIterator>::iter()
+                .filter(|e| !matches!(e, Self::Other(_)))
+                .collect()
+        }
+    };
+}
+
 macro_rules! impl_event_kind {
     ($($event:ident),*) => {$(
         impl EventKind for $event {
-            fn known() -> Vec<Self> {
-                <Self as strum::IntoEnumIterator>::iter()
-                    .filter(|e| !matches!(e, Self::Other(_)))
-                    .collect()
-            }
+            known!();
 
             fn to_any(&self) -> AnyEvent {
                 match self {
@@ -122,6 +162,25 @@ macro_rules! impl_event_kind {
 
 impl_event_kind!(ClaudeCodeEvent, CodexEvent);
 
+impl EventKind for CursorEvent {
+    known!();
+
+    fn to_any(&self) -> AnyEvent {
+        match self {
+            Self::SessionStart => AnyEvent::SessionStart,
+            Self::SessionEnd => AnyEvent::SessionEnd,
+            Self::BeforeSubmitPrompt => AnyEvent::UserPromptSubmit,
+            Self::PreToolUse => AnyEvent::PreToolUse,
+            Self::PostToolUse => AnyEvent::PostToolUse,
+            Self::SubagentStart => AnyEvent::SubagentStart,
+            Self::SubagentStop => AnyEvent::SubagentStop,
+            Self::Stop => AnyEvent::Stop,
+            Self::PreCompact => AnyEvent::PreCompact,
+            other => AnyEvent::Other(other.to_string()),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -134,6 +193,29 @@ mod tests {
         for e in CodexEvent::known() {
             assert_eq!(CodexEvent::from(e.to_string().as_str()), e);
         }
+        for e in CursorEvent::known() {
+            assert_eq!(CursorEvent::from(e.to_string().as_str()), e);
+        }
+    }
+
+    #[test]
+    fn cursor_names_are_camel_case_with_mcp_in_capitals() {
+        assert_eq!(
+            CursorEvent::PostToolUseFailure.to_string(),
+            "postToolUseFailure"
+        );
+        assert_eq!(
+            CursorEvent::BeforeMcpExecution.to_string(),
+            "beforeMCPExecution"
+        );
+        assert_eq!(
+            CursorEvent::from("afterMCPExecution"),
+            CursorEvent::AfterMcpExecution
+        );
+        assert_eq!(
+            CursorEvent::from("PreToolUse"),
+            CursorEvent::Other("PreToolUse".into())
+        );
     }
 
     #[test]
@@ -150,6 +232,7 @@ mod tests {
     fn seed_lists_have_the_spec_sizes() {
         assert_eq!(ClaudeCodeEvent::known().len(), 33);
         assert_eq!(CodexEvent::known().len(), 12);
+        assert_eq!(CursorEvent::known().len(), 21);
         assert!(!CodexEvent::known().contains(&CodexEvent::Other(String::new())));
     }
 
@@ -168,6 +251,14 @@ mod tests {
         assert_eq!(
             ClaudeCodeEvent::PostToolUseFailure.to_any(),
             AnyEvent::Other("PostToolUseFailure".into())
+        );
+        assert_eq!(
+            CursorEvent::BeforeSubmitPrompt.to_any(),
+            AnyEvent::UserPromptSubmit
+        );
+        assert_eq!(
+            CursorEvent::BeforeShellExecution.to_any(),
+            AnyEvent::Other("beforeShellExecution".into())
         );
     }
 }

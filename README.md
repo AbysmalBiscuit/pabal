@@ -12,8 +12,9 @@ A hook command reads a JSON payload on stdin and may answer with JSON on stdout.
 |---|---|---|
 | Claude Code | `ClaudeCode` | `claude-code` (alias `claude`) |
 | Codex | `Codex` | `codex` |
+| Cursor | `Cursor` | `cursor` |
 
-Cursor is planned.
+Cursor also runs hooks configured for Claude Code, and sends them Claude Code's payloads; those parse as `ClaudeCode`.
 
 ## Example
 

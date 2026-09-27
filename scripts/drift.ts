@@ -47,6 +47,15 @@ export function claudeRequiredFields(dts: string, type: string): string[] {
   return fields;
 }
 
+/** Every `#### <event>` heading under `### Hook events` in Cursor's hooks reference, split at ` / `. */
+export function cursorEvents(md: string): string[] {
+  const start = md.indexOf("\n### Hook events");
+  if (start < 0) throw new Error("### Hook events not found in Cursor's hooks reference");
+  const end = md.indexOf("\n## ", start);
+  const section = md.slice(start, end < 0 ? undefined : end);
+  return [...section.matchAll(/^#### (.+)$/gm)].flatMap((m) => m[1].split(" / ").map((e) => e.trim()));
+}
+
 export function diff(upstream: string[], crate: string[]): { added: string[]; removed: string[] } {
   return {
     added: upstream.filter((e) => !crate.includes(e)),
@@ -54,7 +63,7 @@ export function diff(upstream: string[], crate: string[]): { added: string[]; re
   };
 }
 
-type Harness = "claude-code" | "codex";
+type Harness = "claude-code" | "codex" | "cursor";
 
 function eventFindings(upstream: string[], crate: string[], source: string): string[] {
   const { added, removed } = diff(upstream, crate);
@@ -114,6 +123,13 @@ async function claude(crate: string[]): Promise<string[]> {
   return findings;
 }
 
+async function cursor(crate: string[]): Promise<string[]> {
+  const url = "https://cursor.com/docs/hooks.md";
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`${url}: ${res.status}`);
+  return eventFindings(cursorEvents(await res.text()), crate, url);
+}
+
 async function report(harness: Harness, findings: string[], dryRun: boolean) {
   const title = `drift: ${harness}`;
   const body = [
@@ -143,6 +159,7 @@ async function main() {
   const results: [Harness, string[]][] = [
     ["codex", await codex(crate.codex)],
     ["claude-code", await claude(crate["claude-code"])],
+    ["cursor", await cursor(crate.cursor)],
   ];
   for (const [harness, findings] of results) {
     if (findings.length > 0) await report(harness, findings, dryRun);

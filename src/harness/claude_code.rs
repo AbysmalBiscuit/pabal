@@ -2,7 +2,7 @@ use std::path::Path;
 
 use serde_json::Value;
 
-use super::{AnyHarness, Harness, sealed};
+use super::{AnyHarness, Harness, Keys, sealed};
 use crate::{
     ClaudeCodeEvent, Payload, ShellKind, Tool,
     payload::text,
@@ -24,6 +24,7 @@ impl Harness for ClaudeCode {
     type Event = ClaudeCodeEvent;
     type View<'a> = ClaudeCodeView<'a>;
 
+    const KEYS: Keys = Keys::SNAKE_CASE;
     const KIND: AnyHarness = AnyHarness::ClaudeCode;
 
     fn tool<'a>(call: &'a Value, cwd: Option<&'a Path>) -> Option<Tool<'a>> {

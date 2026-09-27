@@ -1,0 +1,8 @@
+{
+  "hook_event_name": "workspaceOpen",
+  "cursor_version": "1.7.2",
+  "workspace_roots": [
+    "/project"
+  ],
+  "user_email": null
+}

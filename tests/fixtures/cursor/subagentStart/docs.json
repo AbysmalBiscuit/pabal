@@ -1,0 +1,20 @@
+{
+  "conversation_id": "668320d2-2fd8-4888-b33c-2a466fec86e7",
+  "generation_id": "490b90b7-a2ce-4c2c-bb76-cb77b125df2f",
+  "model": "claude-opus-4-7-thinking-max",
+  "hook_event_name": "subagentStart",
+  "cursor_version": "1.7.2",
+  "workspace_roots": [
+    "/project"
+  ],
+  "user_email": null,
+  "transcript_path": "/home/user/.cursor/projects/project/agent-transcripts/668320d2-2fd8-4888-b33c-2a466fec86e7.txt",
+  "subagent_id": "abc-123",
+  "subagent_type": "generalPurpose",
+  "task": "Explore the authentication flow",
+  "parent_conversation_id": "668320d2-2fd8-4888-b33c-2a466fec86e7",
+  "tool_call_id": "tc-789",
+  "subagent_model": "claude-sonnet-4-20250514",
+  "is_parallel_worker": false,
+  "git_branch": "feature/auth"
+}

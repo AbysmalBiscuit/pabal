@@ -11,9 +11,9 @@ mod tool;
 pub mod view;
 
 pub use error::Error;
-pub use event::{AnyEvent, ClaudeCodeEvent, CodexEvent, EventKind};
-pub use harness::{AnyHarness, ClaudeCode, Codex, Harness};
+pub use event::{AnyEvent, ClaudeCodeEvent, CodexEvent, CursorEvent, EventKind};
+pub use harness::{AnyHarness, ClaudeCode, Codex, Cursor, Harness};
 pub use payload::{AnyPayload, Fields, Payload};
 pub use response::{AddContext, Allow, Ask, Deny, Response};
 pub use tool::{Edit, ShellKind, Tool, ToolCall};
-pub use view::{AnyView, ClaudeCodeView, CodexView};
+pub use view::{AnyView, ClaudeCodeView, CodexView, CursorView};

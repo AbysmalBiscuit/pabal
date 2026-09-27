@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { claudeEvents, claudeRequiredFields, codexEvents, diff } from "./drift";
+import { claudeEvents, claudeRequiredFields, codexEvents, cursorEvents, diff } from "./drift";
 
 test("codexEvents maps input schema file names", () => {
   expect(
@@ -63,4 +63,19 @@ test("claudeRequiredFields skips doc comments and nested fields", () => {
     "};",
   ].join("\n");
   expect(claudeRequiredFields(dts, "BaseHookInput")).toEqual(["session_id", "usage", "cwd"]);
+});
+
+test("cursorEvents reads the headings under Hook events", () => {
+  const md = [
+    "### Common schema",
+    "#### Input (all hooks)",
+    "### Hook events",
+    "#### preToolUse",
+    "Called before any tool execution.",
+    "#### beforeShellExecution / beforeMCPExecution",
+    "#### workspaceOpen",
+    "## Environment Variables",
+    "#### notAnEvent",
+  ].join("\n");
+  expect(cursorEvents(md)).toEqual(["preToolUse", "beforeShellExecution", "beforeMCPExecution", "workspaceOpen"]);
 });

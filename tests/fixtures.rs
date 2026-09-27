@@ -1,7 +1,8 @@
 use std::path::{Path, PathBuf};
 
 use pabal::{
-    AnyHarness, AnyPayload, ClaudeCode, ClaudeCodeView, CodexView, Edit, Fields, Payload, Tool,
+    AnyHarness, AnyPayload, ClaudeCode, ClaudeCodeView, CodexView, CursorView, Edit, Fields,
+    Payload, Tool,
 };
 use serde_json::Value;
 
@@ -74,6 +75,7 @@ fn is_other(payload: &AnyPayload) -> bool {
     match payload {
         AnyPayload::ClaudeCode(p) => matches!(p.view(), ClaudeCodeView::Other(_)),
         AnyPayload::Codex(p) => matches!(p.view(), CodexView::Other(_)),
+        AnyPayload::Cursor(p) => matches!(p.view(), CursorView::Other(_)),
     }
 }
 
@@ -157,6 +159,21 @@ fn every_consumer_event_has_a_fixture() {
             "PostCompact",
             "SessionEnd",
         ]),
+        ("cursor", &[
+            "sessionStart",
+            "sessionEnd",
+            "preToolUse",
+            "postToolUse",
+            "postToolUseFailure",
+            "subagentStart",
+            "subagentStop",
+            "beforeShellExecution",
+            "beforeMCPExecution",
+            "beforeSubmitPrompt",
+            "preCompact",
+            "stop",
+            "workspaceOpen",
+        ]),
     ];
     let mut missing = Vec::new();
     for (harness, events) in expected {
@@ -205,6 +222,19 @@ fn every_tool_fixture_gives_its_tool_view() {
         ("codex/PreToolUse/apply-patch.json", "patch"),
         ("codex/PreToolUse/bash.json", "shell -"),
         ("codex/PreToolUse/mcp.json", "mcp memory/create_entities"),
+        (
+            "cursor/afterMCPExecution/docs.json",
+            "mcp linear/save_issue",
+        ),
+        ("cursor/afterShellExecution/docs.json", "shell -"),
+        (
+            "cursor/beforeMCPExecution/docs.json",
+            "mcp linear/save_issue",
+        ),
+        ("cursor/beforeShellExecution/docs.json", "shell -"),
+        ("cursor/postToolUse/docs.json", "shell -"),
+        ("cursor/postToolUseFailure/docs.json", "shell -"),
+        ("cursor/preToolUse/docs.json", "shell -"),
     ];
     let mut failures = Vec::new();
     for f in fixtures() {

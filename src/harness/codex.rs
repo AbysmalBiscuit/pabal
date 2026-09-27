@@ -2,7 +2,7 @@ use std::path::Path;
 
 use serde_json::Value;
 
-use super::{AnyHarness, Harness, sealed};
+use super::{AnyHarness, Harness, Keys, sealed};
 use crate::{
     CodexEvent, Payload, Tool,
     payload::text,
@@ -23,6 +23,7 @@ impl Harness for Codex {
     type Event = CodexEvent;
     type View<'a> = CodexView<'a>;
 
+    const KEYS: Keys = Keys::SNAKE_CASE;
     const KIND: AnyHarness = AnyHarness::Codex;
 
     fn tool<'a>(call: &'a Value, cwd: Option<&'a Path>) -> Option<Tool<'a>> {

@@ -7,8 +7,9 @@ use crate::payload::text;
 /// The tool call inside a tool event, normalized across harnesses.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Tool<'a> {
-    /// A shell command. `cwd` is the payload's `cwd`; `shell` is set only
-    /// when the harness names the shell.
+    /// A shell command. `cwd` is where it runs: the tool's own working
+    /// directory when the harness sends one (Cursor), else the payload's
+    /// `cwd`. `shell` is set only when the harness names the shell.
     #[allow(missing_docs, reason = "described on the variant")]
     Shell {
         command: &'a str,
@@ -17,7 +18,10 @@ pub enum Tool<'a> {
     },
     /// A tool that writes files.
     Edit(Edit<'a>),
-    /// An MCP tool, from a `mcp__<server>__<tool>` name.
+    /// An MCP tool: from a `mcp__<server>__<tool>` name, from Cursor's
+    /// `mcp_server_name`, or from Cursor's `MCP:<tool>` name, which names no
+    /// server. Cursor's `beforeMCPExecution` and `afterMCPExecution` send
+    /// `input` as a JSON-encoded string.
     #[allow(missing_docs, reason = "described on the variant")]
     Mcp {
         server: Option<&'a str>,
@@ -200,9 +204,13 @@ mod tests {
     use serde_json::json;
 
     use super::*;
-    use crate::{AnyHarness, AnyPayload, ClaudeCode, Codex, Fields, Payload};
+    use crate::{AnyHarness, AnyPayload, ClaudeCode, Codex, Cursor, Fields, Payload};
 
     fn claude(v: Value) -> Payload<ClaudeCode> {
+        Payload::from_value(v).unwrap()
+    }
+
+    fn cursor(v: Value) -> Payload<Cursor> {
         Payload::from_value(v).unwrap()
     }
 
@@ -548,5 +556,85 @@ mod tests {
             })
         ));
         assert_eq!(p.agent(), Some("a1"));
+    }
+
+    #[test]
+    fn cursor_shell_runs_in_its_working_directory() {
+        let p = cursor(json!({
+            "hook_event_name": "preToolUse", "tool_name": "Shell", "cwd": "/project",
+            "tool_input": {"command": "npm install", "working_directory": "/project/web"}
+        }));
+        assert_eq!(
+            p.tool(),
+            Some(Tool::Shell {
+                command: "npm install",
+                cwd: Some(Path::new("/project/web")),
+                shell: None
+            })
+        );
+        let p = cursor(json!({
+            "hook_event_name": "preToolUse", "tool_name": "Shell", "cwd": "/project",
+            "tool_input": {"command": "ls"}
+        }));
+        assert!(
+            matches!(p.tool(), Some(Tool::Shell { cwd: Some(c), .. }) if c == Path::new("/project"))
+        );
+    }
+
+    #[test]
+    fn cursor_shell_execution_carries_its_command_at_the_top_level() {
+        let p = cursor(json!({
+            "hook_event_name": "beforeShellExecution", "command": "vite dev", "cwd": "/repo"
+        }));
+        assert_eq!(
+            p.tool(),
+            Some(Tool::Shell {
+                command: "vite dev",
+                cwd: Some(Path::new("/repo")),
+                shell: None
+            })
+        );
+    }
+
+    #[test]
+    fn cursor_mcp_names_its_server_when_it_can() {
+        let p = cursor(json!({
+            "hook_event_name": "beforeMCPExecution", "tool_name": "save_issue",
+            "tool_input": "{\"title\":\"x\"}", "mcp_server_name": "linear", "command": "npx linear"
+        }));
+        assert_eq!(
+            p.tool(),
+            Some(Tool::Mcp {
+                server: Some("linear"),
+                tool: "save_issue",
+                input: &json!("{\"title\":\"x\"}")
+            })
+        );
+        let p = cursor(pre("MCP:save_issue", json!({})));
+        assert!(matches!(
+            p.tool(),
+            Some(Tool::Mcp {
+                server: None,
+                tool: "save_issue",
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn cursor_write_is_a_write_and_the_rest_are_other() {
+        let p = cursor(pre("Write", json!({"file_path": "/repo/a.rs"})));
+        assert_eq!(
+            p.tool(),
+            Some(Tool::Edit(Edit::Write {
+                path: Path::new("/repo/a.rs")
+            }))
+        );
+        for name in ["Read", "Delete", "Grep", "Task"] {
+            let p = cursor(pre(name, json!({"file_path": "/repo/a.rs"})));
+            assert!(matches!(p.tool(), Some(Tool::Other { name: n, .. }) if n == name));
+        }
+        let p = cursor(json!({"hook_event_name": "sessionStart", "session_id": "s"}));
+        assert_eq!(p.tool(), None);
     }
 }
