@@ -1,6 +1,8 @@
-# pabal
+# pabal (파발)
 
 Typed hook payloads and responses for coding-agent harnesses.
+
+The name is the Joseon-era relay courier system (擺撥): riders carrying dispatches between stations, as this crate carries messages between a harness and its hooks.
 
 A hook command reads a JSON payload on stdin and may answer with JSON on stdout. `pabal` parses the payload, narrows it to its event, gives a typed view of the tool call, and builds the response the harness accepts. It does not read stdin, pick exit codes or install hooks; those stay with the hook command.
 
