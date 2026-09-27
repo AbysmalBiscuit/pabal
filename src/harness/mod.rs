@@ -2,7 +2,7 @@ use serde_json::Value;
 
 use std::path::Path;
 
-use crate::{EventKind, Payload, Tool};
+use crate::{ClaudeCodeEvent, CodexEvent, EventKind, Payload, Tool};
 
 mod claude_code;
 mod codex;
@@ -49,17 +49,25 @@ pub enum AnyHarness {
 }
 
 impl AnyHarness {
-    /// Guesses the harness: `turn_id` or `model` means Codex, unless
-    /// `cursor_version` (Cursor running a Claude Code hook) is present.
+    /// Guesses the harness. `cursor_version` (Cursor running a Claude Code
+    /// hook) means Claude Code, then an event only one harness sends decides,
+    /// then `turn_id` or `model` means Codex.
     ///
     /// Misreads Codex `SessionEnd` (neither field) as Claude Code, and Claude
     /// Code `SessionStart` with `model` as Codex. Prefer an explicit harness.
     pub fn infer(raw: &Value) -> AnyHarness {
         let has = |key| raw.get(key).is_some();
-        if has("cursor_version") || !(has("turn_id") || has("model")) {
+        let event = raw.get("hook_event_name").and_then(Value::as_str);
+        let claude = event.is_some_and(|e| !matches!(e.parse(), Ok(ClaudeCodeEvent::Other(_))));
+        let codex = event.is_some_and(|e| !matches!(e.parse(), Ok(CodexEvent::Other(_))));
+        if has("cursor_version") || (claude && !codex) {
             AnyHarness::ClaudeCode
-        } else {
+        } else if codex && !claude {
             AnyHarness::Codex
+        } else if has("turn_id") || has("model") {
+            AnyHarness::Codex
+        } else {
+            AnyHarness::ClaudeCode
         }
     }
 }
@@ -158,6 +166,17 @@ mod tests {
             "reason": "exit", "transcript_path": "/t.jsonl"
         });
         assert_eq!(AnyHarness::infer(&p), AnyHarness::ClaudeCode);
+    }
+
+    #[test]
+    fn an_event_only_one_harness_sends_decides() {
+        let message = json!({
+            "hook_event_name": "MessageDisplay", "session_id": "s", "cwd": "/w",
+            "turn_id": "t1", "message_id": "m1", "index": 0, "final": true, "delta": ""
+        });
+        assert_eq!(AnyHarness::infer(&message), AnyHarness::ClaudeCode);
+        let interrupt = json!({"hook_event_name": "Interrupt", "session_id": "s"});
+        assert_eq!(AnyHarness::infer(&interrupt), AnyHarness::Codex);
     }
 
     #[test]

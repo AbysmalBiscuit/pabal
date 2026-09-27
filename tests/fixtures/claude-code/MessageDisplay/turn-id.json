@@ -1,0 +1,11 @@
+{
+  "session_id": "8f1c2a4e-5b6d-4e7f-9a0b-1c2d3e4f5a6b",
+  "transcript_path": "/home/user/.claude/projects/-repo/8f1c2a4e-5b6d-4e7f-9a0b-1c2d3e4f5a6b.jsonl",
+  "cwd": "/repo",
+  "hook_event_name": "MessageDisplay",
+  "turn_id": "0b9e4d1a-7c3f-4a2e-8d5b-6f1e2a3b4c5d",
+  "message_id": "d2c1b0a9-8f7e-4d6c-5b4a-3f2e1d0c9b8a",
+  "index": 0,
+  "final": false,
+  "delta": "Reading the config.\n"
+}
