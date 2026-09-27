@@ -1,0 +1,14 @@
+{
+  "session_id": "0199a-root",
+  "transcript_path": "/home/user/.codex/sessions/rollout.jsonl",
+  "cwd": "/home/user/my-project",
+  "model": "gpt-5",
+  "permission_mode": "default",
+  "turn_id": "t1",
+  "hook_event_name": "SubagentStop",
+  "agent_id": "agent-1",
+  "agent_type": "worker",
+  "agent_transcript_path": "/home/user/.codex/sessions/agent-1.jsonl",
+  "stop_hook_active": false,
+  "last_assistant_message": "Done."
+}

@@ -1,0 +1,6 @@
+{
+  "hook_event_name": "SessionStart",
+  "session_id": "cursor-session",
+  "cursor_version": "2026.08.11-e8db854",
+  "model": "claude-4.5-sonnet"
+}

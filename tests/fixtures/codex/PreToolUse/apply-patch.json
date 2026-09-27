@@ -1,0 +1,14 @@
+{
+  "session_id": "0199a-root",
+  "transcript_path": "/home/user/.codex/sessions/rollout.jsonl",
+  "cwd": "/home/user/my-project",
+  "model": "gpt-5",
+  "permission_mode": "default",
+  "turn_id": "t1",
+  "hook_event_name": "PreToolUse",
+  "tool_name": "apply_patch",
+  "tool_input": {
+    "command": "*** Begin Patch\n*** Update File: src/lib.rs\n@@\n-a\n+b\n*** End Patch\n"
+  },
+  "tool_use_id": "call_2"
+}
