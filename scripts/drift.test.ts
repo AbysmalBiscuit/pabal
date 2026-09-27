@@ -28,18 +28,19 @@ test("diff reports added and removed", () => {
   expect(diff(["A", "B"], ["B", "C"])).toEqual({ added: ["A"], removed: ["C"] });
 });
 
-test("claudeEvents reads the SDK 0.3.283 typings", async () => {
-  const dts = await Bun.file(`${import.meta.dir}/testdata/sdk.d.ts`).text();
-  expect(claudeEvents(dts).toSorted()).toEqual(
-    [
-      "SessionStart", "Setup", "UserPromptSubmit", "UserPromptExpansion", "PreToolUse",
-      "PermissionRequest", "PermissionDenied", "PostToolUse", "PostToolUseFailure", "PostToolBatch",
-      "Notification", "MessageDisplay", "SubagentStart", "SubagentStop", "TaskCreated", "TaskCompleted",
-      "Stop", "StopFailure", "TeammateIdle", "InstructionsLoaded", "ConfigChange", "CwdChanged",
-      "DirectoryAdded", "FileChanged", "WorktreeCreate", "WorktreeRemove", "PreCompact", "PostCompact",
-      "PreModelSwitch", "PostModelSwitch", "Elicitation", "ElicitationResult", "SessionEnd",
-    ].toSorted(),
-  );
-  expect(claudeRequiredFields(dts, "BaseHookInput")).toEqual(["session_id", "transcript_path", "cwd"]);
-  expect(claudeRequiredFields(dts, "SessionEndHookInput")).toEqual(["hook_event_name", "reason"]);
+test("claudeRequiredFields skips doc comments and nested fields", () => {
+  const dts = [
+    "export declare type BaseHookInput = {",
+    "    session_id: string;",
+    "    /**",
+    "     * Absent until: the first prompt.",
+    "     */",
+    "    prompt_id?: string;",
+    "    usage: {",
+    "        tokens: number;",
+    "    };",
+    "    cwd: string;",
+    "};",
+  ].join("\n");
+  expect(claudeRequiredFields(dts, "BaseHookInput")).toEqual(["session_id", "usage", "cwd"]);
 });

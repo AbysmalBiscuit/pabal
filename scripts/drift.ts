@@ -28,6 +28,7 @@ export function claudeRequiredFields(dts: string, type: string): string[] {
   const start = dts.match(new RegExp(`export declare type ${type} = [^{;]*\\{`));
   if (!start || start.index === undefined) return [];
   let depth = 0;
+  let lineDepth = 1;
   let line = "";
   const fields: string[] = [];
   for (const ch of dts.slice(start.index + start[0].length - 1)) {
@@ -38,9 +39,10 @@ export function claudeRequiredFields(dts: string, type: string): string[] {
       line += ch;
       continue;
     }
-    const field = depth === 1 ? line.match(/^\s*(\w+):/)?.[1] : undefined;
+    const field = lineDepth === 1 ? line.match(/^\s*(\w+):/)?.[1] : undefined;
     if (field) fields.push(field);
     line = "";
+    lineDepth = depth;
   }
   return fields;
 }
@@ -125,10 +127,11 @@ async function report(harness: Harness, findings: string[], dryRun: boolean) {
     console.log(`## ${title}\n\n${body}\n`);
     return;
   }
-  const open: { number: number }[] =
-    await $`gh issue list --label drift --search ${`${title} in:title`} --state open --json number`.json();
-  if (open.length > 0) {
-    await $`gh issue edit ${open[0].number} --body ${body}`;
+  const open: { number: number; title: string }[] =
+    await $`gh issue list --label drift --state open --json number,title`.json();
+  const existing = open.find((issue) => issue.title === title);
+  if (existing) {
+    await $`gh issue edit ${existing.number} --body ${body}`;
   } else {
     await $`gh issue create --label drift --title ${title} --body ${body}`;
   }
