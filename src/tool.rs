@@ -9,31 +9,34 @@ use crate::payload::text;
 pub enum Tool<'a> {
     /// A shell command. `cwd` is the payload's `cwd`; `shell` is set only
     /// when the harness names the shell.
+    #[allow(missing_docs, reason = "described on the variant")]
     Shell {
         command: &'a str,
         cwd: Option<&'a Path>,
         shell: Option<ShellKind>,
     },
+    /// A tool that writes files.
     Edit(Edit<'a>),
     /// An MCP tool, from a `mcp__<server>__<tool>` name.
+    #[allow(missing_docs, reason = "described on the variant")]
     Mcp {
         server: Option<&'a str>,
         tool: &'a str,
         input: &'a Value,
     },
     /// Any other tool, with its `tool_name` and `tool_input` as sent.
-    Other {
-        name: &'a str,
-        input: &'a Value,
-    },
+    #[allow(missing_docs, reason = "described on the variant")]
+    Other { name: &'a str, input: &'a Value },
 }
 
 /// A tool call that writes files.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Edit<'a> {
     /// A tool that writes the one file at `path`.
+    #[allow(missing_docs, reason = "described on the variant")]
     Write { path: &'a Path },
     /// A Codex `apply_patch` envelope.
+    #[allow(missing_docs, reason = "described on the variant")]
     Patch { patch: &'a str },
 }
 
@@ -45,6 +48,11 @@ impl Edit<'_> {
     /// update. Only unprefixed lines are headers, since patch body lines start
     /// with `+`, `-` or a space. A patch whose first line is not
     /// `*** Begin Patch`, or that never reaches `*** End Patch`, names nothing.
+    ///
+    /// ```
+    /// let patch = "*** Begin Patch\n*** Add File: a.rs\n+x\n*** End Patch";
+    /// assert_eq!(pabal::Edit::Patch { patch }.paths(), [std::path::Path::new("a.rs")]);
+    /// ```
     pub fn paths(&self) -> Vec<PathBuf> {
         match self {
             Edit::Write { path } => vec![path.to_path_buf()],
@@ -55,6 +63,7 @@ impl Edit<'_> {
 
 /// The shell a harness names for a shell tool.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, strum::EnumString, strum::Display)]
+#[allow(missing_docs, reason = "each variant is the shell's tool name")]
 pub enum ShellKind {
     Bash,
     PowerShell,
@@ -65,8 +74,11 @@ pub enum ShellKind {
 /// One call of a batch event such as Claude Code's `PostToolBatch`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ToolCall<'a> {
+    /// The call's `tool_use_id`.
     pub tool_use_id: Option<&'a str>,
+    /// The call's tool view.
     pub tool: Tool<'a>,
+    /// The call's `tool_response`, when the harness sent one.
     pub response: Option<&'a Value>,
 }
 

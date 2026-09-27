@@ -21,15 +21,23 @@ impl Response {
         Self(None)
     }
 
+    /// Whether the hook writes nothing.
     pub fn is_none(&self) -> bool {
         self.0.is_none()
     }
 
+    /// The JSON the hook writes, if any.
     pub fn json(&self) -> Option<&Value> {
         self.0.as_ref()
     }
 
     /// Denies a `PreToolUse` call when no payload could be parsed.
+    ///
+    /// ```
+    /// use pabal::{AnyHarness, Response};
+    /// let r = Response::deny_pre_tool_use(AnyHarness::Codex, "stdin was not JSON");
+    /// assert_eq!(r.json().unwrap()["hookSpecificOutput"]["permissionDecision"], "deny");
+    /// ```
     pub fn deny_pre_tool_use(harness: AnyHarness, reason: &str) -> Self {
         match harness {
             AnyHarness::ClaudeCode | AnyHarness::Codex => deny(reason),
@@ -86,6 +94,7 @@ fn context(event: &str, text: &str) -> Response {
 /// p.session_end().unwrap().deny("no");
 /// ```
 pub trait Deny {
+    /// A deny with `reason`; a blank reason becomes a fixed one.
     fn deny(&self, reason: &str) -> Response;
 }
 
@@ -97,6 +106,7 @@ pub trait Deny {
 /// p.stop().unwrap().add_context("x");
 /// ```
 pub trait AddContext {
+    /// The response that adds `text`.
     fn add_context(&self, text: &str) -> Response;
 }
 
@@ -109,6 +119,7 @@ pub trait AddContext {
 /// p.pre_tool_use().unwrap().ask("sure?");
 /// ```
 pub trait Ask {
+    /// The response that asks, showing `reason`.
     fn ask(&self, reason: &str) -> Response;
 }
 
@@ -121,6 +132,7 @@ pub trait Ask {
 /// p.pre_tool_use().unwrap().allow_skipping_prompt();
 /// ```
 pub trait Allow {
+    /// The response that allows the call.
     fn allow_skipping_prompt(&self) -> Response;
 }
 

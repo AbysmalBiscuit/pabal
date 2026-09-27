@@ -18,7 +18,9 @@ mod sealed {
 ///
 /// Sealed: only this crate's harness types implement it.
 pub trait Harness: sealed::Sealed + Sized + 'static {
+    /// The runtime name of this harness.
     const KIND: AnyHarness;
+    /// The harness's event enum.
     type Event: EventKind;
 
     /// The tool view of `call`, an object with `tool_name` and `tool_input`:
@@ -41,6 +43,7 @@ pub trait Harness: sealed::Sealed + Sized + 'static {
 )]
 #[strum(serialize_all = "kebab-case")]
 #[cfg_attr(feature = "clap", derive(clap::ValueEnum))]
+#[allow(missing_docs, reason = "each variant is its harness")]
 pub enum AnyHarness {
     #[strum(to_string = "claude-code", serialize = "claude")]
     #[cfg_attr(feature = "clap", value(name = "claude-code", alias = "claude"))]
@@ -55,6 +58,12 @@ impl AnyHarness {
     ///
     /// Misreads Codex `SessionEnd` (neither field) as Claude Code, and Claude
     /// Code `SessionStart` with `model` as Codex. Prefer an explicit harness.
+    ///
+    /// ```
+    /// use pabal::AnyHarness;
+    /// let codex = serde_json::json!({"hook_event_name": "Stop", "turn_id": "t"});
+    /// assert_eq!(AnyHarness::infer(&codex), AnyHarness::Codex);
+    /// ```
     pub fn infer(raw: &Value) -> AnyHarness {
         let has = |key| raw.get(key).is_some_and(|v| !v.is_null());
         let event = raw.get("hook_event_name").and_then(Value::as_str);

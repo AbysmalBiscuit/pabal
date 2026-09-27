@@ -11,6 +11,7 @@ pub trait EventKind: Clone + Debug + PartialEq + Eq + Display + for<'s> From<&'s
 
 /// A Claude Code hook event, named as Claude Code sends `hook_event_name`.
 #[derive(Debug, Clone, PartialEq, Eq, strum::EnumString, strum::Display, strum::EnumIter)]
+#[allow(missing_docs, reason = "each variant is its wire name")]
 pub enum ClaudeCodeEvent {
     SessionStart,
     Setup,
@@ -52,6 +53,7 @@ pub enum ClaudeCodeEvent {
 
 /// A Codex hook event, named as Codex sends `hook_event_name`.
 #[derive(Debug, Clone, PartialEq, Eq, strum::EnumString, strum::Display, strum::EnumIter)]
+#[allow(missing_docs, reason = "each variant is its wire name")]
 pub enum CodexEvent {
     PreToolUse,
     PostToolUse,
@@ -72,6 +74,7 @@ pub enum CodexEvent {
 
 /// An event every harness sends, or `Other` with the harness's own name.
 #[derive(Debug, Clone, PartialEq, Eq, strum::Display)]
+#[allow(missing_docs, reason = "each variant is its wire name")]
 pub enum AnyEvent {
     SessionStart,
     SessionEnd,

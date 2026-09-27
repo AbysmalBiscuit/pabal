@@ -15,6 +15,13 @@ pub struct Payload<H: Harness> {
 
 impl<H: Harness> Payload<H> {
     /// Parses hook stdin. Fails only when it is not a JSON object.
+    ///
+    /// ```
+    /// use pabal::{Codex, CodexEvent, Payload};
+    /// let p = Payload::<Codex>::parse(r#"{"hook_event_name":"Stop"}"#).unwrap();
+    /// assert_eq!(p.event(), &CodexEvent::Stop);
+    /// assert!(Payload::<Codex>::parse("[]").is_err());
+    /// ```
     pub fn parse(stdin: &str) -> Result<Self, Error> {
         Self::from_value(serde_json::from_str(stdin)?)
     }
@@ -32,6 +39,7 @@ impl<H: Harness> Payload<H> {
         })
     }
 
+    /// The event, from `hook_event_name`.
     pub fn event(&self) -> &H::Event {
         &self.event
     }
@@ -48,12 +56,17 @@ impl<H: Harness> Payload<H> {
 /// all read as `None`.
 #[ambassador::delegatable_trait]
 pub trait Fields {
+    /// The harness that sent the payload.
     fn harness(&self) -> AnyHarness;
+    /// The event in its harness-independent form.
     fn any_event(&self) -> AnyEvent;
     /// The `hook_event_name` as sent, including events this crate does not know.
     fn event_name(&self) -> String;
+    /// The `session_id`.
     fn session_id(&self) -> Option<&str>;
+    /// The `cwd`, verbatim.
     fn cwd(&self) -> Option<&Path>;
+    /// The `transcript_path`, verbatim.
     fn transcript_path(&self) -> Option<&Path>;
     /// The raw `agent_id`, set for subagents and for Claude Code forks alike.
     fn agent_id(&self) -> Option<&str>;
@@ -61,9 +74,11 @@ pub trait Fields {
     /// also set. A Claude Code fork has no `agent_type` and speaks for its
     /// session.
     fn agent(&self) -> Option<&str>;
+    /// The `tool_use_id` of a single-tool event.
     fn tool_use_id(&self) -> Option<&str>;
     /// The tool call of a single-tool event; `None` without a `tool_name`.
     fn tool(&self) -> Option<Tool<'_>>;
+    /// The payload as parsed, for fields this crate does not model.
     fn raw(&self) -> &Value;
 }
 
@@ -106,6 +121,7 @@ impl<H: Harness> Fields for Payload<H> {
 /// A payload whose harness is chosen at runtime.
 #[derive(Debug, Clone, ambassador::Delegate)]
 #[delegate(Fields)]
+#[allow(missing_docs, reason = "each variant is its harness")]
 pub enum AnyPayload {
     ClaudeCode(Payload<ClaudeCode>),
     Codex(Payload<Codex>),
@@ -117,6 +133,7 @@ impl AnyPayload {
         Self::from_value(harness, serde_json::from_str(stdin)?)
     }
 
+    /// Wraps an already parsed payload from `harness`.
     pub fn from_value(harness: AnyHarness, raw: Value) -> Result<Self, Error> {
         Ok(match harness {
             AnyHarness::ClaudeCode => Self::ClaudeCode(Payload::from_value(raw)?),
@@ -125,6 +142,12 @@ impl AnyPayload {
     }
 
     /// Parses hook stdin, guessing the harness with [`AnyHarness::infer`].
+    ///
+    /// ```
+    /// use pabal::{AnyHarness, AnyPayload, Fields};
+    /// let p = AnyPayload::parse_inferred(r#"{"hook_event_name":"Stop","turn_id":"t"}"#);
+    /// assert_eq!(p.unwrap().harness(), AnyHarness::Codex);
+    /// ```
     pub fn parse_inferred(stdin: &str) -> Result<Self, Error> {
         let raw: Value = serde_json::from_str(stdin)?;
         Self::from_value(AnyHarness::infer(&raw), raw)

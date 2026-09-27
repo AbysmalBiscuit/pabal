@@ -49,12 +49,14 @@ macro_rules! shared_views {
 
             #[doc = concat!("A `", stringify!($name), "` view from either harness.")]
             #[derive(Debug, Clone, Copy)]
+            #[allow(missing_docs, reason = "each variant is its harness")]
             pub enum $any<'a> {
                 ClaudeCode($name<'a, ClaudeCode>),
                 Codex($name<'a, Codex>),
             }
 
             impl<'a> $any<'a> {
+                /// The payload's accessors, whatever its harness.
                 pub fn fields(&self) -> &'a dyn Fields {
                     match self {
                         Self::ClaudeCode(v) => v.0,
@@ -66,6 +68,7 @@ macro_rules! shared_views {
 
         /// A payload narrowed to an event every harness sends.
         #[derive(Debug, Clone, Copy)]
+        #[allow(missing_docs, reason = "each variant is its wire name")]
         pub enum AnyView<'a> {
             $($name($any<'a>),)*
             /// An event only some harnesses send, or one this crate does not know.
@@ -157,6 +160,7 @@ impl Payload<ClaudeCode> {
 
 /// A Claude Code payload narrowed to its event.
 #[derive(Debug, Clone, Copy)]
+#[allow(missing_docs, reason = "each variant is its wire name")]
 pub enum ClaudeCodeView<'a> {
     SessionStart(SessionStart<'a, ClaudeCode>),
     Setup(Raw<'a, ClaudeCode>),
@@ -196,6 +200,7 @@ pub enum ClaudeCodeView<'a> {
 
 /// A Codex payload narrowed to its event.
 #[derive(Debug, Clone, Copy)]
+#[allow(missing_docs, reason = "each variant is its wire name")]
 pub enum CodexView<'a> {
     PreToolUse(PreToolUse<'a, Codex>),
     PostToolUse(PostToolUse<'a, Codex>),
