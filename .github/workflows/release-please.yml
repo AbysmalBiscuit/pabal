@@ -4,17 +4,18 @@ on:
   push:
     branches: [main]
 
-permissions:
-  contents: write
-  pull-requests: write
-
 jobs:
-  # Maintains the release PR and, on merge, creates the tag and GitHub Release,
-  # then publishes that tag to crates.io.
+  # Maintains the release PR and, on merge, creates the tag and GitHub Release.
   release-please:
     name: release-please
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
     steps:
       - uses: googleapis/release-please-action@v5
         id: release
@@ -25,16 +26,29 @@ jobs:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
-      - if: ${{ steps.release.outputs.release_created }}
-        uses: actions/checkout@v7
+  # crates.io trusted publishing checks only the workflow filename, so the
+  # crates-io environment's branch rule is what keeps other branches from
+  # publishing.
+  publish:
+    name: Publish to crates.io
+    needs: release-please
+    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: crates-io
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
         with:
-          ref: ${{ steps.release.outputs.tag_name }}
+          ref: ${{ needs.release-please.outputs.tag_name }}
 
-      - if: ${{ steps.release.outputs.release_created }}
-        uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@stable
 
-      - if: ${{ steps.release.outputs.release_created }}
-        name: Publish to crates.io
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+      - uses: rust-lang/crates-io-auth-action@v1
+        id: auth
+
+      - env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
         run: cargo publish --locked
