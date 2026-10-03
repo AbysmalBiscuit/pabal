@@ -367,54 +367,61 @@ fn prefixed(payload: &AnyPayload) -> Map<String, Value> {
     input
 }
 
-/// The answer each harness documents for a rewrite: Codex applies
-/// `updatedInput` only beside an `allow`, which it does not otherwise accept.
-fn rewrite_envelope(
-    harness: AnyHarness,
-    input: &Map<String, Value>,
-    context: Option<&str>,
-) -> Value {
-    let (mut fields, context_key) = match harness {
-        AnyHarness::ClaudeCode => (
-            json!({"hookEventName": "PreToolUse", "updatedInput": input}),
-            "additionalContext",
-        ),
-        AnyHarness::Codex => (
-            json!({"hookEventName": "PreToolUse", "permissionDecision": "allow", "updatedInput": input}),
-            "additionalContext",
-        ),
-        AnyHarness::Cursor => (json!({"updated_input": input}), "additional_context"),
-        AnyHarness::Antigravity => unreachable!("Antigravity has no rewrite"),
-    };
-    if let Some(context) = context {
-        fields[context_key] = json!(context);
-    }
-    match harness {
-        AnyHarness::Cursor => fields,
-        _ => json!({ "hookSpecificOutput": fields }),
-    }
-}
-
 #[test]
 fn each_harness_rewrites_a_recorded_call_in_its_own_envelope() {
+    let claude_input = json!({
+        "command": "HOLDER=a npm test",
+        "description": "Run test suite",
+        "timeout": 120000,
+        "run_in_background": false
+    });
+    let codex_input = json!({"command": "HOLDER=a cargo test"});
+    let cursor_input = json!({"command": "HOLDER=a echo pabal-probe", "cwd": "", "timeout": 30000});
     let cases = [
-        (AnyHarness::ClaudeCode, "claude-code/PreToolUse/bash.json"),
-        (AnyHarness::Codex, "codex/PreToolUse/bash.json"),
-        (AnyHarness::Cursor, "cursor/preToolUse/shell.json"),
+        (
+            AnyHarness::ClaudeCode,
+            "claude-code/PreToolUse/bash.json",
+            json!({"hookSpecificOutput": {
+                "hookEventName": "PreToolUse",
+                "updatedInput": claude_input,
+                "additionalContext": "tagged"
+            }}),
+            json!({"hookSpecificOutput": {
+                "hookEventName": "PreToolUse",
+                "updatedInput": claude_input
+            }}),
+        ),
+        (
+            AnyHarness::Codex,
+            "codex/PreToolUse/bash.json",
+            json!({"hookSpecificOutput": {
+                "hookEventName": "PreToolUse",
+                "permissionDecision": "allow",
+                "updatedInput": codex_input,
+                "additionalContext": "tagged"
+            }}),
+            json!({"hookSpecificOutput": {
+                "hookEventName": "PreToolUse",
+                "permissionDecision": "allow",
+                "updatedInput": codex_input
+            }}),
+        ),
+        (
+            AnyHarness::Cursor,
+            "cursor/preToolUse/shell.json",
+            json!({"updated_input": cursor_input, "additional_context": "tagged"}),
+            json!({"updated_input": cursor_input}),
+        ),
     ];
-    for (harness, rel) in cases {
+    for (harness, rel, with_context, without_context) in cases {
         let payload = fixture(harness, rel);
         let AnyView::PreToolUse(pre) = payload.view() else {
             panic!("{rel}")
         };
         let input = prefixed(&payload);
-        for context in [Some("tagged"), None] {
-            let answer = pre.rewrite_input(input.clone(), context).unwrap();
-            assert_eq!(
-                parsed(&answer),
-                rewrite_envelope(harness, &input, context),
-                "{rel} {context:?}"
-            );
-        }
+        let answer = pre.rewrite_input(input.clone(), Some("tagged")).unwrap();
+        assert_eq!(parsed(&answer), with_context, "{rel}");
+        let answer = pre.rewrite_input(input, None).unwrap();
+        assert_eq!(parsed(&answer), without_context, "{rel}");
     }
 }
