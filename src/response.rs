@@ -177,24 +177,7 @@ pub trait Allow {
 /// Replaces the tool call's input before it runs, adding `context` to the
 /// agent's context in the same answer when given. The harness's own
 /// permission check then runs on the new input. Claude Code's, Codex's and
-/// Cursor's `PreToolUse` have it:
-///
-/// ```
-/// use pabal::{ClaudeCode, Payload, RewriteInput};
-/// use serde_json::{Map, json};
-/// let p = Payload::<ClaudeCode>::parse(r#"{"hook_event_name":"PreToolUse"}"#).unwrap();
-/// let input = Map::from_iter([("command".to_owned(), json!("HOLDER=a ls"))]);
-/// let r = p
-///     .pre_tool_use()
-///     .unwrap()
-///     .rewrite_input(input, Some("tagged"));
-/// assert_eq!(
-///     r.json().unwrap()["hookSpecificOutput"]["updatedInput"]["command"],
-///     "HOLDER=a ls"
-/// );
-/// ```
-///
-/// Antigravity's `PreToolUse` answer has no input field:
+/// Cursor's `PreToolUse` have it; Antigravity's answer has no input field:
 ///
 /// ```compile_fail
 /// use pabal::{Antigravity, Payload, RewriteInput};
@@ -202,12 +185,6 @@ pub trait Allow {
 /// let p = Payload::<Antigravity>::parse_named("PreToolUse", "{}").unwrap();
 /// p.pre_tool_use().unwrap().rewrite_input(Map::new(), None);
 /// ```
-///
-/// On Claude Code the input replaces the whole object, so it keeps the fields
-/// the hook leaves alone. Codex shell and `apply_patch` calls take only
-/// `command` from it and keep their other arguments. Cursor reads only the
-/// fields it knows for each tool, such as a shell call's `command`, `cwd`
-/// and `timeout`.
 pub trait RewriteInput {
     /// The response that runs the call with `input`.
     fn rewrite_input(&self, input: Map<String, Value>, context: Option<&str>) -> Response;
@@ -243,6 +220,8 @@ fn hook_specific_rewrite(
     hook_specific("PreToolUse", fields)
 }
 
+/// The input replaces the whole object, so it keeps the fields the hook
+/// leaves alone.
 impl RewriteInput for PreToolUse<'_, ClaudeCode> {
     fn rewrite_input(&self, input: Map<String, Value>, context: Option<&str>) -> Response {
         hook_specific_rewrite(Map::new(), input, context)
@@ -250,7 +229,9 @@ impl RewriteInput for PreToolUse<'_, ClaudeCode> {
 }
 
 /// Codex applies `updatedInput` only beside an `allow`, which it otherwise
-/// rejects. The call still goes through Codex's own approval.
+/// rejects. The call still goes through Codex's own approval. Shell and
+/// `apply_patch` calls take only `command` from the input and keep their
+/// other arguments.
 impl RewriteInput for PreToolUse<'_, Codex> {
     fn rewrite_input(&self, input: Map<String, Value>, context: Option<&str>) -> Response {
         let allow = Map::from_iter([("permissionDecision".to_owned(), json!("allow"))]);
@@ -258,6 +239,8 @@ impl RewriteInput for PreToolUse<'_, Codex> {
     }
 }
 
+/// Cursor reads only the fields it knows for each tool, such as a shell
+/// call's `command`, `cwd` and `timeout`.
 impl RewriteInput for PreToolUse<'_, Cursor> {
     fn rewrite_input(&self, input: Map<String, Value>, context: Option<&str>) -> Response {
         let mut answer = Map::from_iter([("updated_input".to_owned(), Value::Object(input))]);
