@@ -1,8 +1,8 @@
 use pabal::{
     AddContext, Allow, Antigravity, AnyHarness, AnyPayload, AnyView, Ask, ClaudeCode, Codex,
-    Cursor, Deny, Harness, Payload, Response,
+    Cursor, Deny, Fields, Harness, Payload, Response,
 };
-use serde_json::{Value, json};
+use serde_json::{Map, Value, json};
 
 fn parsed(r: &Response) -> Value {
     serde_json::from_str(&r.to_string()).unwrap()
@@ -345,9 +345,83 @@ fn any_view_offers_antigravity_only_what_it_honors() {
     assert_eq!(parsed(&pre.ask("sure?").unwrap())["decision"], "ask");
     assert_eq!(pre.allow_skipping_prompt(), None);
     assert_eq!(pre.add_context("x"), None);
+    assert_eq!(pre.rewrite_input(Map::new(), Some("x")), None);
     let p = AnyPayload::parse_named(AnyHarness::Antigravity, "PostToolUse", "{}").unwrap();
     let AnyView::PostToolUse(post) = p.view() else {
         panic!()
     };
     assert_eq!(post.add_context("x"), None);
+}
+
+fn fixture(harness: AnyHarness, rel: &str) -> AnyPayload {
+    let path = format!("{}/tests/fixtures/{rel}", env!("CARGO_MANIFEST_DIR"));
+    AnyPayload::parse(harness, &std::fs::read_to_string(path).unwrap()).unwrap()
+}
+
+/// The payload's `tool_input` with its command prefixed, as a hook that
+/// tags each shell call would rewrite it.
+fn prefixed(payload: &AnyPayload) -> Map<String, Value> {
+    let mut input = payload.raw()["tool_input"].as_object().unwrap().clone();
+    let command = format!("HOLDER=a {}", input["command"].as_str().unwrap());
+    input.insert("command".to_owned(), json!(command));
+    input
+}
+
+#[test]
+fn each_harness_rewrites_a_recorded_call_in_its_own_envelope() {
+    let claude_input = json!({
+        "command": "HOLDER=a npm test",
+        "description": "Run test suite",
+        "timeout": 120000,
+        "run_in_background": false
+    });
+    let codex_input = json!({"command": "HOLDER=a cargo test"});
+    let cursor_input = json!({"command": "HOLDER=a echo pabal-probe", "cwd": "", "timeout": 30000});
+    let cases = [
+        (
+            AnyHarness::ClaudeCode,
+            "claude-code/PreToolUse/bash.json",
+            json!({"hookSpecificOutput": {
+                "hookEventName": "PreToolUse",
+                "updatedInput": claude_input,
+                "additionalContext": "tagged"
+            }}),
+            json!({"hookSpecificOutput": {
+                "hookEventName": "PreToolUse",
+                "updatedInput": claude_input
+            }}),
+        ),
+        (
+            AnyHarness::Codex,
+            "codex/PreToolUse/bash.json",
+            json!({"hookSpecificOutput": {
+                "hookEventName": "PreToolUse",
+                "permissionDecision": "allow",
+                "updatedInput": codex_input,
+                "additionalContext": "tagged"
+            }}),
+            json!({"hookSpecificOutput": {
+                "hookEventName": "PreToolUse",
+                "permissionDecision": "allow",
+                "updatedInput": codex_input
+            }}),
+        ),
+        (
+            AnyHarness::Cursor,
+            "cursor/preToolUse/shell.json",
+            json!({"updated_input": cursor_input, "additional_context": "tagged"}),
+            json!({"updated_input": cursor_input}),
+        ),
+    ];
+    for (harness, rel, with_context, without_context) in cases {
+        let payload = fixture(harness, rel);
+        let AnyView::PreToolUse(pre) = payload.view() else {
+            panic!("{rel}")
+        };
+        let input = prefixed(&payload);
+        let answer = pre.rewrite_input(input.clone(), Some("tagged")).unwrap();
+        assert_eq!(parsed(&answer), with_context, "{rel}");
+        let answer = pre.rewrite_input(input, None).unwrap();
+        assert_eq!(parsed(&answer), without_context, "{rel}");
+    }
 }

@@ -69,6 +69,16 @@ assert_eq!(
 
 A response method exists only on the events whose harness accepts it: `deny` on a `SessionEnd` view does not compile.
 
+The answers a `PreToolUse` view offers on each harness. On `AnyPreToolUse` the methods missing here return `None`.
+
+| Answer | Claude Code | Codex | Cursor | Antigravity |
+|---|---|---|---|---|
+| `deny` | yes | yes | yes | yes |
+| `ask` | yes | no | no | yes |
+| `allow_skipping_prompt` | yes | no | no | no |
+| `add_context` | yes | yes | yes | no |
+| `rewrite_input` | yes | yes | yes | no |
+
 ## Exhaustive enums and semver
 
 Event, view and tool enums are not `#[non_exhaustive]`. An event, tool or view the crate does not know parses into an `Other` variant, and parsing fails only on input that is not a JSON object. When a harness adds an event, `pabal` adds a variant in a minor release (0.x), and every exhaustive `match` in a consumer fails to compile at the spot that has to handle it.
