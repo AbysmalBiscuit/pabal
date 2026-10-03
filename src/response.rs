@@ -203,9 +203,11 @@ pub trait Allow {
 /// p.pre_tool_use().unwrap().rewrite_input(Map::new(), None);
 /// ```
 ///
-/// The input replaces the whole object on Claude Code and Codex, so it keeps
-/// the fields the hook leaves alone. Cursor reads only the fields it knows
-/// for each tool, such as a shell call's `command`, `cwd` and `timeout`.
+/// On Claude Code the input replaces the whole object, so it keeps the fields
+/// the hook leaves alone. Codex shell and `apply_patch` calls take only
+/// `command` from it and keep their other arguments. Cursor reads only the
+/// fields it knows for each tool, such as a shell call's `command`, `cwd`
+/// and `timeout`.
 pub trait RewriteInput {
     /// The response that runs the call with `input`.
     fn rewrite_input(&self, input: Map<String, Value>, context: Option<&str>) -> Response;
