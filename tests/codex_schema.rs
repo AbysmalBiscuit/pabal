@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
-use pabal::{AddContext, Codex, Deny, Payload, Response};
-use serde_json::{Value, json};
+use pabal::{AddContext, Codex, Deny, Payload, Response, RewriteInput};
+use serde_json::{Map, Value, json};
 
 /// The Codex schema directory: `PABAL_CODEX_SCHEMAS`, else the vendored copy.
 fn schema_dir() -> PathBuf {
@@ -41,9 +41,12 @@ fn payload(event: &str) -> Payload<Codex> {
 fn codex_responses_match_the_output_schemas() {
     let pre = payload("PreToolUse");
     let pre = pre.pre_tool_use().unwrap();
+    let input = Map::from_iter([("command".to_owned(), json!("ls"))]);
     let mut responses: Vec<(&str, Response)> = vec![
         ("PreToolUse", pre.deny("no")),
         ("PreToolUse", pre.add_context("x")),
+        ("PreToolUse", pre.rewrite_input(input.clone(), None)),
+        ("PreToolUse", pre.rewrite_input(input, Some("x"))),
     ];
     let post = payload("PostToolUse");
     let prompt = payload("UserPromptSubmit");

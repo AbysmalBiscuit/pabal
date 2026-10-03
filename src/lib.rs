@@ -14,6 +14,6 @@ pub use error::Error;
 pub use event::{AntigravityEvent, AnyEvent, ClaudeCodeEvent, CodexEvent, CursorEvent, EventKind};
 pub use harness::{Antigravity, AnyHarness, ClaudeCode, Codex, Cursor, Harness};
 pub use payload::{AnyPayload, Fields, Payload};
-pub use response::{AddContext, Allow, Ask, Deny, Response};
+pub use response::{AddContext, Allow, Ask, Deny, Response, RewriteInput};
 pub use tool::{Edit, ShellKind, Tool, ToolCall};
 pub use view::{AntigravityView, AnyView, ClaudeCodeView, CodexView, CursorView};

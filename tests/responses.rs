@@ -1,8 +1,8 @@
 use pabal::{
     AddContext, Allow, Antigravity, AnyHarness, AnyPayload, AnyView, Ask, ClaudeCode, Codex,
-    Cursor, Deny, Harness, Payload, Response,
+    Cursor, Deny, Fields, Harness, Payload, Response,
 };
-use serde_json::{Value, json};
+use serde_json::{Map, Value, json};
 
 fn parsed(r: &Response) -> Value {
     serde_json::from_str(&r.to_string()).unwrap()
@@ -345,9 +345,76 @@ fn any_view_offers_antigravity_only_what_it_honors() {
     assert_eq!(parsed(&pre.ask("sure?").unwrap())["decision"], "ask");
     assert_eq!(pre.allow_skipping_prompt(), None);
     assert_eq!(pre.add_context("x"), None);
+    assert_eq!(pre.rewrite_input(Map::new(), Some("x")), None);
     let p = AnyPayload::parse_named(AnyHarness::Antigravity, "PostToolUse", "{}").unwrap();
     let AnyView::PostToolUse(post) = p.view() else {
         panic!()
     };
     assert_eq!(post.add_context("x"), None);
+}
+
+fn fixture(harness: AnyHarness, rel: &str) -> AnyPayload {
+    let path = format!("{}/tests/fixtures/{rel}", env!("CARGO_MANIFEST_DIR"));
+    AnyPayload::parse(harness, &std::fs::read_to_string(path).unwrap()).unwrap()
+}
+
+/// The payload's `tool_input` with its command prefixed, as a hook that
+/// tags each shell call would rewrite it.
+fn prefixed(payload: &AnyPayload) -> Map<String, Value> {
+    let mut input = payload.raw()["tool_input"].as_object().unwrap().clone();
+    let command = format!("HOLDER=a {}", input["command"].as_str().unwrap());
+    input.insert("command".to_owned(), json!(command));
+    input
+}
+
+/// The answer each harness documents for a rewrite: Codex applies
+/// `updatedInput` only beside an `allow`, which it does not otherwise accept.
+fn rewrite_envelope(
+    harness: AnyHarness,
+    input: &Map<String, Value>,
+    context: Option<&str>,
+) -> Value {
+    let (mut fields, context_key) = match harness {
+        AnyHarness::ClaudeCode => (
+            json!({"hookEventName": "PreToolUse", "updatedInput": input}),
+            "additionalContext",
+        ),
+        AnyHarness::Codex => (
+            json!({"hookEventName": "PreToolUse", "permissionDecision": "allow", "updatedInput": input}),
+            "additionalContext",
+        ),
+        AnyHarness::Cursor => (json!({"updated_input": input}), "additional_context"),
+        AnyHarness::Antigravity => unreachable!("Antigravity has no rewrite"),
+    };
+    if let Some(context) = context {
+        fields[context_key] = json!(context);
+    }
+    match harness {
+        AnyHarness::Cursor => fields,
+        _ => json!({ "hookSpecificOutput": fields }),
+    }
+}
+
+#[test]
+fn each_harness_rewrites_a_recorded_call_in_its_own_envelope() {
+    let cases = [
+        (AnyHarness::ClaudeCode, "claude-code/PreToolUse/bash.json"),
+        (AnyHarness::Codex, "codex/PreToolUse/bash.json"),
+        (AnyHarness::Cursor, "cursor/preToolUse/shell.json"),
+    ];
+    for (harness, rel) in cases {
+        let payload = fixture(harness, rel);
+        let AnyView::PreToolUse(pre) = payload.view() else {
+            panic!("{rel}")
+        };
+        let input = prefixed(&payload);
+        for context in [Some("tagged"), None] {
+            let answer = pre.rewrite_input(input.clone(), context).unwrap();
+            assert_eq!(
+                parsed(&answer),
+                rewrite_envelope(harness, &input, context),
+                "{rel} {context:?}"
+            );
+        }
+    }
 }

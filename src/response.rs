@@ -174,6 +174,43 @@ pub trait Allow {
     fn allow_skipping_prompt(&self) -> Response;
 }
 
+/// Replaces the tool call's input before it runs, adding `context` to the
+/// agent's context in the same answer when given. The harness's own
+/// permission check then runs on the new input. Claude Code's, Codex's and
+/// Cursor's `PreToolUse` have it:
+///
+/// ```
+/// use pabal::{ClaudeCode, Payload, RewriteInput};
+/// use serde_json::{Map, json};
+/// let p = Payload::<ClaudeCode>::parse(r#"{"hook_event_name":"PreToolUse"}"#).unwrap();
+/// let input = Map::from_iter([("command".to_owned(), json!("HOLDER=a ls"))]);
+/// let r = p
+///     .pre_tool_use()
+///     .unwrap()
+///     .rewrite_input(input, Some("tagged"));
+/// assert_eq!(
+///     r.json().unwrap()["hookSpecificOutput"]["updatedInput"]["command"],
+///     "HOLDER=a ls"
+/// );
+/// ```
+///
+/// Antigravity's `PreToolUse` answer has no input field:
+///
+/// ```compile_fail
+/// use pabal::{Antigravity, Payload, RewriteInput};
+/// use serde_json::Map;
+/// let p = Payload::<Antigravity>::parse_named("PreToolUse", "{}").unwrap();
+/// p.pre_tool_use().unwrap().rewrite_input(Map::new(), None);
+/// ```
+///
+/// The input replaces the whole object on Claude Code and Codex, so it keeps
+/// the fields the hook leaves alone. Cursor reads only the fields it knows
+/// for each tool, such as a shell call's `command`, `cwd` and `timeout`.
+pub trait RewriteInput {
+    /// The response that runs the call with `input`.
+    fn rewrite_input(&self, input: Map<String, Value>, context: Option<&str>) -> Response;
+}
+
 impl<H: Harness> Deny for PreToolUse<'_, H> {
     fn deny(&self, reason: &str) -> Response {
         Response::deny_pre_tool_use(H::KIND, reason)
@@ -189,6 +226,43 @@ impl Ask for PreToolUse<'_, ClaudeCode> {
 impl Allow for PreToolUse<'_, ClaudeCode> {
     fn allow_skipping_prompt(&self) -> Response {
         permission("allow", None)
+    }
+}
+
+fn hook_specific_rewrite(
+    mut fields: Map<String, Value>,
+    input: Map<String, Value>,
+    context: Option<&str>,
+) -> Response {
+    fields.insert("updatedInput".to_owned(), Value::Object(input));
+    if let Some(text) = context {
+        fields.insert("additionalContext".to_owned(), json!(text));
+    }
+    hook_specific("PreToolUse", fields)
+}
+
+impl RewriteInput for PreToolUse<'_, ClaudeCode> {
+    fn rewrite_input(&self, input: Map<String, Value>, context: Option<&str>) -> Response {
+        hook_specific_rewrite(Map::new(), input, context)
+    }
+}
+
+/// Codex applies `updatedInput` only beside an `allow`, which it otherwise
+/// rejects. The call still goes through Codex's own approval.
+impl RewriteInput for PreToolUse<'_, Codex> {
+    fn rewrite_input(&self, input: Map<String, Value>, context: Option<&str>) -> Response {
+        let allow = Map::from_iter([("permissionDecision".to_owned(), json!("allow"))]);
+        hook_specific_rewrite(allow, input, context)
+    }
+}
+
+impl RewriteInput for PreToolUse<'_, Cursor> {
+    fn rewrite_input(&self, input: Map<String, Value>, context: Option<&str>) -> Response {
+        let mut answer = Map::from_iter([("updated_input".to_owned(), Value::Object(input))]);
+        if let Some(text) = context {
+            answer.insert("additional_context".to_owned(), json!(text));
+        }
+        Response(Some(Value::Object(answer)))
     }
 }
 
@@ -302,6 +376,20 @@ impl AnyPreToolUse<'_> {
             AnyPreToolUse::ClaudeCode(v) => Some(v.ask(reason)),
             AnyPreToolUse::Antigravity(v) => Some(v.ask(reason)),
             AnyPreToolUse::Codex(_) | AnyPreToolUse::Cursor(_) => None,
+        }
+    }
+
+    /// [`RewriteInput::rewrite_input`], or `None` on a harness without it.
+    pub fn rewrite_input(
+        &self,
+        input: Map<String, Value>,
+        context: Option<&str>,
+    ) -> Option<Response> {
+        match self {
+            AnyPreToolUse::ClaudeCode(v) => Some(v.rewrite_input(input, context)),
+            AnyPreToolUse::Codex(v) => Some(v.rewrite_input(input, context)),
+            AnyPreToolUse::Cursor(v) => Some(v.rewrite_input(input, context)),
+            AnyPreToolUse::Antigravity(_) => None,
         }
     }
 
