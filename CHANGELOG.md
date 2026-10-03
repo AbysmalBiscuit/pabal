@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/AbysmalBiscuit/pabal/compare/v0.2.0...v0.2.1) (2026-10-03)
+
+
+### Features
+
+* add a PreToolUse input rewrite answer ([#15](https://github.com/AbysmalBiscuit/pabal/issues/15)) ([7543f86](https://github.com/AbysmalBiscuit/pabal/commit/7543f861cc3335c3c300e171ba0c2f54b0491cac))
+
 ## [0.2.0](https://github.com/AbysmalBiscuit/pabal/compare/v0.1.0...v0.2.0) (2026-09-27)
 
 
