@@ -195,7 +195,9 @@ pub trait RewriteInput {
 }
 
 /// Keeps the agent from ending its turn, giving it `reason` as its next
-/// prompt. Antigravity's `Stop` and Cursor's `subagentStop` have none:
+/// prompt. Claude Code's and Codex's `Stop` and `SubagentStop` and Cursor's
+/// `stop` have it; Antigravity's `Stop` and Cursor's `subagentStop` have
+/// none:
 ///
 /// ```compile_fail
 /// use pabal::{Antigravity, Block, Payload};
