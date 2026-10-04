@@ -79,6 +79,13 @@ The answers a `PreToolUse` view offers on each harness. On `AnyPreToolUse` the m
 | `add_context` | yes | yes | yes | no |
 | `rewrite_input` | yes | yes | yes | no |
 
+`block` keeps the agent from ending its turn and gives it the reason as its next prompt. On `AnyStop` and `AnySubagentStop` it returns `None` where this table says no.
+
+| Event | Claude Code | Codex | Cursor | Antigravity |
+|---|---|---|---|---|
+| `Stop` | yes | yes | yes | no |
+| `SubagentStop` | yes | yes | no | not sent |
+
 ## Exhaustive enums and semver
 
 Event, view and tool enums are not `#[non_exhaustive]`. An event, tool or view the crate does not know parses into an `Other` variant, and parsing fails only on input that is not a JSON object. When a harness adds an event, `pabal` adds a variant in a minor release (0.x), and every exhaustive `match` in a consumer fails to compile at the spot that has to handle it.
