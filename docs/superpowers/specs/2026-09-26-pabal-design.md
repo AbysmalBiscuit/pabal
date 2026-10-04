@@ -310,6 +310,7 @@ Response methods live on the view types, through traits implemented only for the
 | `Ask` | `ask(reason) -> Response` | Claude Code `PreToolUse` (`permissionDecision = "ask"`). Codex's output schema lists `ask`, but its parser rejects it and runs the tool (`hooks/src/engine/output_parser.rs`). |
 | `Allow` | `allow_skipping_prompt() -> Response` | Claude Code `PreToolUse`. Codex accepts `allow` only with `updatedInput` and otherwise runs the tool as if no hook answered. The name is deliberate: an explicit allow bypasses the user's own permission prompt, which devkit avoids on purpose. |
 | `RewriteInput` | `rewrite_input(input, context) -> Response` | Claude Code `PreToolUse`: `hookSpecificOutput.updatedInput`, with `additionalContext` when `context` is given and no `permissionDecision`, so Claude Code's permission check runs on the new input. Source: the [Claude Code hooks reference](https://code.claude.com/docs/en/hooks), PreToolUse decision control. Codex `PreToolUse`: the same envelope with `permissionDecision = "allow"`, the only decision beside which Codex applies `updatedInput` (`hooks/src/engine/output_parser.rs`). The call still goes through Codex's own approval. Codex shell and `apply_patch` calls take only `command` from the input and keep their other arguments (`core/src/tools/handlers/mod.rs`). |
+| `Block` | `block(reason) -> Response` | Claude Code and Codex `Stop` and `SubagentStop`: `{"decision": "block", "reason": reason}`, which keeps the agent running and gives it the reason as its next prompt. Sources: the [Claude Code hooks reference](https://code.claude.com/docs/en/hooks), Stop decision control, and the vendored Codex `stop` and `subagent-stop` output schemas. A blank reason is replaced with a fixed one, because Codex requires a reason beside `block`. |
 
 Cursor answers with top-level fields instead of `hookSpecificOutput`:
 
@@ -319,6 +320,7 @@ Cursor answers with top-level fields instead of `hookSpecificOutput`:
 | `Ask` | `beforeShellExecution` | The same envelope with `"permission": "ask"`, which forces the approval prompt and shows `user_message`. The CLI accepts `ask` on `preToolUse` and `beforeMCPExecution` but ignores it, so neither has `Ask`. |
 | `AddContext` | `sessionStart`, `preToolUse`, `postToolUse` | `{"additional_context": text}`. Cursor drops text longer than 10,000 characters. |
 | `RewriteInput` | `preToolUse` | `{"updated_input": input}`, plus `additional_context` when `context` is given. Source: the [Cursor hooks reference](https://cursor.com/docs/hooks.md), `preToolUse` output. The CLI source applies `updated_input` whenever the hook did not deny, reading only the fields it knows for each tool, such as a shell call's `command`, `cwd` and `timeout`. This answer has not been run against the CLI: the reference's example pairs `updated_input` with `permission`, which `pabal` does not send. |
+| `Block` | `stop` | `{"followup_message": reason}`, which Cursor submits as the next prompt, up to the `loop_limit` in `hooks.json`. A blank reason is replaced as on Codex. `subagentStop` has no `Block`: its `followup_message` starts the next iteration once the sub-agent has completed, and does not keep it running. |
 
 devkit sends `continue: true` beside a Cursor deny, copied from Cursor's shell examples. `pabal` does not: Cursor's `preToolUse` schema does not list it, and a response that does not match a permission hook's schema blocks the action.
 
@@ -348,7 +350,7 @@ use pabal::prelude::*;
 // Payload, AnyPayload, Fields,
 // ClaudeCodeView, CodexView, CursorView, AntigravityView, AnyView, AnyEvent,
 // Tool, Edit, ToolCall, ShellKind,
-// Response, Deny, AddContext, Ask, Allow, RewriteInput
+// Response, Deny, AddContext, Ask, Allow, RewriteInput, Block
 ```
 
 ### Dependencies
@@ -416,7 +418,7 @@ What the CLI leaves to the caller:
 
 - **Failure mode.** Exit 2 denies, with stdout or stderr as the message. Other non-zero exits, an empty stdout and timeouts (60 seconds by default) fail open unless the hook sets `failClosed: true`. A permission hook's invalid JSON, or a response that does not match its schema, blocks the action.
 - **Claude hooks under Cursor.** The CLI runs hooks configured for Claude Code (`~/.claude/settings.json`, the project's `.claude/settings.json` and `.claude/settings.local.json`), mapping Claude's event names onto its own, and sends them the same camelCase payload as its own hooks, so they parse as Cursor. It reads a Claude `hookSpecificOutput` response back, with `permissionDecisionReason` as `user_message`. The [third-party hooks docs](https://cursor.com/docs/reference/third-party-hooks) say Cursor sends Claude's event names instead, so a PascalCase event with `cursor_version` still reads as Claude Code.
-- **Unmodeled responses.** `updated_mcp_tool_output` on `postToolUse`, `env` on `sessionStart`, `followup_message` on `stop` and `subagentStop`, `continue: false` on `beforeSubmitPrompt`, deny on `beforeReadFile` and `subagentStart`, and `additional_context` on `postToolUseFailure` have no consumer yet, so they have no trait.
+- **Unmodeled responses.** `updated_mcp_tool_output` on `postToolUse`, `env` on `sessionStart`, `followup_message` on `subagentStop`, `continue: false` on `beforeSubmitPrompt`, deny on `beforeReadFile` and `subagentStart`, and `additional_context` on `postToolUseFailure` have no consumer yet, so they have no trait.
 
 ## Antigravity
 
@@ -443,7 +445,7 @@ Google Antigravity is the second harness added after v0.1.0: an `Antigravity` ty
 | `Deny` | `{"decision": "deny", "reason": reason}`. The agent sees the reason. |
 | `Ask` | `{"decision": "ask", "reason": reason}`. Antigravity shows its approval prompt with the reason. |
 
-`force_ask`, `deny_unless_prior_grant`, `permissionOverrides`, `injectSteps`, `terminationBehavior` and `Stop`'s `decision: "continue"` have no consumer yet, so they have no trait. `allow` has no trait either: the docs say it allows without a prompt, but the CLI still shows its approval prompt after `allow`, with or without `permissionOverrides`. `PostToolUse` has no response fields, so `AnyPostToolUse::add_context` returns `None` for Antigravity. `PreToolUse` has no input field, so there is no `RewriteInput` and `AnyPreToolUse::rewrite_input` returns `None`.
+`force_ask`, `deny_unless_prior_grant`, `permissionOverrides`, `injectSteps`, `terminationBehavior` and `Stop`'s `decision: "continue"` have no consumer yet, so they have no trait. `allow` has no trait either: the docs say it allows without a prompt, but the CLI still shows its approval prompt after `allow`, with or without `permissionOverrides`. `PostToolUse` has no response fields, so `AnyPostToolUse::add_context` returns `None` for Antigravity. `PreToolUse` has no input field, so there is no `RewriteInput` and `AnyPreToolUse::rewrite_input` returns `None`. Without `decision: "continue"` there is no `Block` on `Stop`, and `AnyStop::block` returns `None`.
 
 **Failure mode.** An empty stdout is no opinion: the tool falls through to Antigravity's own approval policy, so `Response::none()` is safe. Any non-zero exit, and stdout that is not JSON, block the tool with an error the agent sees, so a hook that crashes on Antigravity blocks every tool call.
 

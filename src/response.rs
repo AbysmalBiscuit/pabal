@@ -8,9 +8,9 @@ use serde_json::{Map, Value, json};
 use crate::{
     Antigravity, AnyHarness, ClaudeCode, Codex, Cursor, Harness,
     view::{
-        AnyPostToolUse, AnyPreToolUse, AnySessionStart, AnySubagentStart, AnyUserPromptSubmit,
-        BeforeMcpExecution, BeforeShellExecution, PostToolBatch, PostToolUse, PreToolUse,
-        SessionStart, SubagentStart, UserPromptSubmit,
+        AnyPostToolUse, AnyPreToolUse, AnySessionStart, AnyStop, AnySubagentStart, AnySubagentStop,
+        AnyUserPromptSubmit, BeforeMcpExecution, BeforeShellExecution, PostToolBatch, PostToolUse,
+        PreToolUse, SessionStart, Stop, SubagentStart, SubagentStop, UserPromptSubmit,
     },
 };
 
@@ -49,7 +49,7 @@ impl Response {
     /// assert_eq!(r.json().unwrap()["permission"], "deny");
     /// ```
     pub fn deny_pre_tool_use(harness: AnyHarness, reason: &str) -> Self {
-        let reason = nonblank(reason);
+        let reason = nonblank(reason, "Denied by a hook.");
         match harness {
             AnyHarness::ClaudeCode | AnyHarness::Codex => permission("deny", Some(reason)),
             AnyHarness::Cursor => cursor_permission("deny", reason),
@@ -99,14 +99,17 @@ fn decision(decision: &str, reason: &str) -> Response {
     Response(Some(json!({ "decision": decision, "reason": reason })))
 }
 
-/// Codex rejects a blank deny reason and runs the tool anyway.
-fn nonblank(reason: &str) -> &str {
+/// Codex rejects a blank deny or block reason, and runs the tool anyway on
+/// a deny. Cursor ignores an empty `followup_message`.
+fn nonblank<'a>(reason: &'a str, fallback: &'a str) -> &'a str {
     if reason.trim().is_empty() {
-        "Denied by a hook."
+        fallback
     } else {
         reason
     }
 }
+
+const BLOCK_FALLBACK: &str = "A hook blocked this stop; keep working.";
 
 fn context(event: &str, text: &str) -> Response {
     hook_specific(
@@ -190,6 +193,25 @@ pub trait RewriteInput {
     fn rewrite_input(&self, input: Map<String, Value>, context: Option<&str>) -> Response;
 }
 
+/// Keeps the agent from ending its turn, giving it `reason` as its next
+/// prompt. Antigravity's `Stop` and Cursor's `subagentStop` have none:
+///
+/// ```compile_fail
+/// use pabal::{Antigravity, Block, Payload};
+/// let p = Payload::<Antigravity>::parse_named("Stop", "{}").unwrap();
+/// p.stop().unwrap().block("finish the todos");
+/// ```
+///
+/// ```compile_fail
+/// use pabal::{Block, Cursor, Payload};
+/// let p = Payload::<Cursor>::parse(r#"{"hook_event_name":"subagentStop"}"#).unwrap();
+/// p.subagent_stop().unwrap().block("finish the todos");
+/// ```
+pub trait Block {
+    /// A block with `reason`; a blank reason becomes a fixed one.
+    fn block(&self, reason: &str) -> Response;
+}
+
 impl<H: Harness> Deny for PreToolUse<'_, H> {
     fn deny(&self, reason: &str) -> Response {
         Response::deny_pre_tool_use(H::KIND, reason)
@@ -254,6 +276,59 @@ impl RewriteInput for PreToolUse<'_, Cursor> {
 impl Ask for PreToolUse<'_, Antigravity> {
     fn ask(&self, reason: &str) -> Response {
         decision("ask", reason)
+    }
+}
+
+macro_rules! decision_block {
+    ($($view:ident $harness:ident),*) => {$(
+        impl Block for $view<'_, $harness> {
+            fn block(&self, reason: &str) -> Response {
+                Response(Some(json!({
+                    "decision": "block",
+                    "reason": nonblank(reason, BLOCK_FALLBACK),
+                })))
+            }
+        }
+    )*};
+}
+
+decision_block!(
+    Stop ClaudeCode,
+    Stop Codex,
+    SubagentStop ClaudeCode,
+    SubagentStop Codex
+);
+
+/// Cursor submits the message as the user's next prompt, and stops
+/// following up after the `loop_limit` in `hooks.json`.
+impl Block for Stop<'_, Cursor> {
+    fn block(&self, reason: &str) -> Response {
+        Response(Some(
+            json!({ "followup_message": nonblank(reason, BLOCK_FALLBACK) }),
+        ))
+    }
+}
+
+impl AnyStop<'_> {
+    /// [`Block::block`], or `None` on a harness without it.
+    pub fn block(&self, reason: &str) -> Option<Response> {
+        match self {
+            AnyStop::ClaudeCode(v) => Some(v.block(reason)),
+            AnyStop::Codex(v) => Some(v.block(reason)),
+            AnyStop::Cursor(v) => Some(v.block(reason)),
+            AnyStop::Antigravity(_) => None,
+        }
+    }
+}
+
+impl AnySubagentStop<'_> {
+    /// [`Block::block`], or `None` on a harness without it.
+    pub fn block(&self, reason: &str) -> Option<Response> {
+        match self {
+            AnySubagentStop::ClaudeCode(v) => Some(v.block(reason)),
+            AnySubagentStop::Codex(v) => Some(v.block(reason)),
+            AnySubagentStop::Cursor(_) => None,
+        }
     }
 }
 

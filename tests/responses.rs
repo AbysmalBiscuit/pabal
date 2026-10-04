@@ -1,5 +1,5 @@
 use pabal::{
-    AddContext, Allow, Antigravity, AnyHarness, AnyPayload, AnyView, Ask, ClaudeCode, Codex,
+    AddContext, Allow, Antigravity, AnyHarness, AnyPayload, AnyView, Ask, Block, ClaudeCode, Codex,
     Cursor, Deny, Fields, Harness, Payload, Response,
 };
 use serde_json::{Map, Value, json};
@@ -423,5 +423,71 @@ fn each_harness_rewrites_a_recorded_call_in_its_own_envelope() {
         assert_eq!(parsed(&answer), with_context, "{rel}");
         let answer = pre.rewrite_input(input, None).unwrap();
         assert_eq!(parsed(&answer), without_context, "{rel}");
+    }
+}
+
+#[test]
+fn each_harness_blocks_a_recorded_stop_in_its_own_envelope() {
+    let decision = json!({"decision": "block", "reason": "finish the todos"});
+    let cases = [
+        (
+            AnyHarness::ClaudeCode,
+            "claude-code/Stop/docs.json",
+            &decision,
+        ),
+        (
+            AnyHarness::ClaudeCode,
+            "claude-code/SubagentStop/docs.json",
+            &decision,
+        ),
+        (AnyHarness::Codex, "codex/Stop/schema.json", &decision),
+        (
+            AnyHarness::Codex,
+            "codex/SubagentStop/schema.json",
+            &decision,
+        ),
+        (
+            AnyHarness::Cursor,
+            "cursor/stop/cli.json",
+            &json!({"followup_message": "finish the todos"}),
+        ),
+    ];
+    for (harness, rel, expected) in cases {
+        let payload = fixture(harness, rel);
+        let answer = match payload.view() {
+            AnyView::Stop(stop) => stop.block("finish the todos"),
+            AnyView::SubagentStop(stop) => stop.block("finish the todos"),
+            _ => panic!("{rel}"),
+        };
+        assert_eq!(answer.map(|r| parsed(&r)).as_ref(), Some(expected), "{rel}");
+    }
+}
+
+#[test]
+fn stops_without_a_block_answer_none() {
+    let p = fixture(AnyHarness::Cursor, "cursor/subagentStop/docs.json");
+    let AnyView::SubagentStop(stop) = p.view() else {
+        panic!()
+    };
+    assert_eq!(stop.block("finish the todos"), None);
+    let p = AnyPayload::parse_named(AnyHarness::Antigravity, "Stop", "{}").unwrap();
+    let AnyView::Stop(stop) = p.view() else {
+        panic!()
+    };
+    assert_eq!(stop.block("finish the todos"), None);
+}
+
+#[test]
+fn a_blank_block_reason_is_replaced() {
+    let stop = payload::<Codex>("Stop");
+    let sub = payload::<Codex>("SubagentStop");
+    let cursor = payload::<Cursor>("stop");
+    for (r, field) in [
+        (stop.stop().unwrap().block(" \n"), "reason"),
+        (sub.subagent_stop().unwrap().block(""), "reason"),
+        (cursor.stop().unwrap().block(" "), "followup_message"),
+    ] {
+        let reason = parsed(&r)[field].clone();
+        assert!(!reason.as_str().unwrap().trim().is_empty(), "{reason}");
     }
 }

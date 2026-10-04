@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use pabal::{AddContext, Codex, Deny, Payload, Response, RewriteInput};
+use pabal::{AddContext, Block, Codex, Deny, Payload, Response, RewriteInput};
 use serde_json::{Map, Value, json};
 
 /// The Codex schema directory: `PABAL_CODEX_SCHEMAS`, else the vendored copy.
@@ -52,6 +52,8 @@ fn codex_responses_match_the_output_schemas() {
     let prompt = payload("UserPromptSubmit");
     let start = payload("SessionStart");
     let sub = payload("SubagentStart");
+    let stop = payload("Stop");
+    let sub_stop = payload("SubagentStop");
     responses.extend([
         (
             "PostToolUse",
@@ -69,6 +71,8 @@ fn codex_responses_match_the_output_schemas() {
             "SubagentStart",
             sub.subagent_start().unwrap().add_context("x"),
         ),
+        ("Stop", stop.stop().unwrap().block("x")),
+        ("SubagentStop", sub_stop.subagent_stop().unwrap().block("x")),
     ]);
     assert!(
         !errors(&schema("PreToolUse", "output"), &json!({"bogus": 1})).is_empty(),
