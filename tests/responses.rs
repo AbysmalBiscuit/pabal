@@ -480,12 +480,12 @@ fn stops_without_a_block_answer_none() {
 #[test]
 fn a_blank_block_reason_is_replaced() {
     let claude = payload::<ClaudeCode>("Stop");
-    let stop = payload::<Codex>("Stop");
+    let codex = payload::<Codex>("Stop");
     let sub = payload::<Codex>("SubagentStop");
     let cursor = payload::<Cursor>("stop");
     let reasons: Vec<Value> = [
         (claude.stop().unwrap().block("\t"), "reason"),
-        (stop.stop().unwrap().block(" \n"), "reason"),
+        (codex.stop().unwrap().block(" \n"), "reason"),
         (sub.subagent_stop().unwrap().block(""), "reason"),
         (cursor.stop().unwrap().block(" "), "followup_message"),
     ]
