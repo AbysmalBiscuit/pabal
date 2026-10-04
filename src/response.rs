@@ -93,8 +93,9 @@ fn cursor_permission(decision: &str, reason: &str) -> Response {
     })))
 }
 
-/// Antigravity's `PreToolUse` envelope. `reason` reaches the agent or the
-/// user, whichever the decision involves.
+/// The top-level `decision` envelope: Antigravity's `PreToolUse` answer, and
+/// Claude Code's and Codex's block on `Stop` and `SubagentStop`. `reason`
+/// reaches the agent or the user, whichever the decision involves.
 fn decision(decision: &str, reason: &str) -> Response {
     Response(Some(json!({ "decision": decision, "reason": reason })))
 }
@@ -283,10 +284,7 @@ macro_rules! decision_block {
     ($($view:ident $harness:ident),*) => {$(
         impl Block for $view<'_, $harness> {
             fn block(&self, reason: &str) -> Response {
-                Response(Some(json!({
-                    "decision": "block",
-                    "reason": nonblank(reason, BLOCK_FALLBACK),
-                })))
+                decision("block", nonblank(reason, BLOCK_FALLBACK))
             }
         }
     )*};
