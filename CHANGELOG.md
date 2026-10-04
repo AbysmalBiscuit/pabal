@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.2](https://github.com/AbysmalBiscuit/pabal/compare/v0.2.1...v0.2.2) (2026-10-04)
+
+
+### Features
+
+* let a Stop hook block the stop ([#18](https://github.com/AbysmalBiscuit/pabal/issues/18)) ([4b7317e](https://github.com/AbysmalBiscuit/pabal/commit/4b7317e143f1e22d5cb0c6162964bb45c5d217b0))
+
 ## [0.2.1](https://github.com/AbysmalBiscuit/pabal/compare/v0.2.0...v0.2.1) (2026-10-03)
 
 
