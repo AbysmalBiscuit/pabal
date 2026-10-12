@@ -65,6 +65,26 @@ export function antigravityEvents(md: string): string[] {
   return [...section.matchAll(/^\| `(\w+)` \|/gm)].map((m) => m[1]);
 }
 
+/**
+ * The first alias of each event in grok-build's `hook_events! { ... }` list: the PascalCase name
+ * Grok sends as `hook_event_name`. An event whose `display` repeats an earlier one is an alias
+ * Grok collapses before dispatch (`SubagentEnd` for `SubagentStop`), so it is skipped.
+ */
+export function grokEvents(rs: string): string[] {
+  const start = rs.indexOf("\nhook_events! {");
+  if (start < 0) throw new Error("hook_events! { not found in xai-grok-hooks/src/event.rs");
+  const end = rs.indexOf("\n}", start);
+  const list = rs.slice(start, end < 0 ? undefined : end);
+  const seen = new Set<string>();
+  return [...list.matchAll(/^ {4}\w+ \{\s*display: "([^"]+)",\s*aliases: \[\s*"([^"]+)"/gm)].flatMap(
+    ([, display, name]) => {
+      if (seen.has(display)) return [];
+      seen.add(display);
+      return [name];
+    },
+  );
+}
+
 export function diff(upstream: string[], crate: string[]): { added: string[]; removed: string[] } {
   return {
     added: upstream.filter((e) => !crate.includes(e)),
@@ -72,7 +92,7 @@ export function diff(upstream: string[], crate: string[]): { added: string[]; re
   };
 }
 
-type Harness = "claude-code" | "codex" | "cursor" | "antigravity";
+type Harness = "claude-code" | "codex" | "cursor" | "antigravity" | "grok";
 
 function eventFindings(upstream: string[], crate: string[], source: string): string[] {
   const { added, removed } = diff(upstream, crate);
@@ -146,6 +166,15 @@ async function antigravity(crate: string[]): Promise<string[]> {
   return eventFindings(antigravityEvents(await res.text()), crate, url);
 }
 
+async function grok(crate: string[]): Promise<string[]> {
+  const path = "crates/codegen/xai-grok-hooks/src/event.rs";
+  const sha = (await $`gh api repos/xai-org/grok-build/commits/main --jq .sha`.text()).trim();
+  const url = `https://raw.githubusercontent.com/xai-org/grok-build/${sha}/${path}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`${url}: ${res.status}`);
+  return eventFindings(grokEvents(await res.text()), crate, `grok-build ${sha.slice(0, 7)} ${path}`);
+}
+
 async function report(harness: Harness, findings: string[], dryRun: boolean) {
   const title = `drift: ${harness}`;
   const body = [
@@ -177,6 +206,7 @@ async function main() {
     ["claude-code", await claude(crate["claude-code"])],
     ["cursor", await cursor(crate.cursor)],
     ["antigravity", await antigravity(crate.antigravity)],
+    ["grok", await grok(crate.grok)],
   ];
   for (const [harness, findings] of results) {
     if (findings.length > 0) await report(harness, findings, dryRun);
