@@ -103,9 +103,8 @@ function eventFindings(upstream: string[], crate: string[], source: string): str
 }
 
 async function codex(crate: string[]): Promise<string[]> {
-  const tags = await $`gh api repos/openai/codex/releases --paginate --jq '.[] | select(.prerelease | not) | .tag_name'`.text();
-  const tag = tags.split("\n").find((t) => t.startsWith("rust-v"));
-  if (!tag) throw new Error("no rust-v* release of openai/codex");
+  const tag = (await $`gh api repos/openai/codex/releases/latest --jq .tag_name`.text()).trim();
+  if (!tag.startsWith("rust-v")) throw new Error(`latest openai/codex release ${tag} is not rust-v*`);
   const dir = await mkdtemp(join(tmpdir(), "pabal-codex-"));
   const path = "codex-rs/hooks/schema/generated";
   const entries: { name: string; download_url: string }[] =
