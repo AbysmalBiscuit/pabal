@@ -515,9 +515,9 @@ fn a_blank_block_reason_is_replaced() {
     assert!(reasons.iter().all(|r| r == &reasons[0]), "{reasons:?}");
 }
 
-/// Each envelope here was answered to the `grok` CLI: the deny blocked the
-/// call and told the model the reason, the ask raised the permission prompt,
-/// and both contexts reached the model beside the call's result.
+/// Each envelope here is one the `grok` CLI honors: the deny blocks the call
+/// and tells the model the reason, the ask raises the permission prompt, and
+/// both contexts reach the model beside the call's result.
 #[test]
 fn grok_answers_a_recorded_tool_call_in_claudes_envelope() {
     let pre = fixture(
