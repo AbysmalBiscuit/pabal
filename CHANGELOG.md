@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.3.0](https://github.com/AbysmalBiscuit/pabal/compare/v0.2.2...v0.3.0) (2026-10-12)
+
+
+### ⚠ BREAKING CHANGES
+
+* `AnySessionStart::add_context` now returns `Option<Response>` (`None` for Grok) instead of `AnySessionStart` implementing `AddContext`. The exhaustive public enums `AnyHarness`, `AnyPayload` and the per-event `Any*` views (`AnySessionStart`, `AnyPreToolUse`, `AnyStop`, ...) gain `Grok` variants, so exhaustive matches on them stop compiling.
+
+### Features
+
+* add the Grok harness ([#21](https://github.com/AbysmalBiscuit/pabal/issues/21)) ([c2d4874](https://github.com/AbysmalBiscuit/pabal/commit/c2d4874d626ef227a1a25a28283d131fcc02df61))
+
 ## [0.2.2](https://github.com/AbysmalBiscuit/pabal/compare/v0.2.1...v0.2.2) (2026-10-04)
 
 
