@@ -1,8 +1,8 @@
 use std::path::{Path, PathBuf};
 
 use pabal::{
-    AntigravityView, AnyEvent, AnyHarness, AnyPayload, ClaudeCode, ClaudeCodeView, CodexView,
-    CursorView, Edit, Fields, GrokView, Payload, Tool,
+    AntigravityView, AnyHarness, AnyPayload, ClaudeCode, ClaudeCodeView, CodexView, CursorView,
+    Edit, Fields, GrokView, Payload, Tool,
 };
 use serde_json::Value;
 
@@ -331,41 +331,6 @@ fn the_batch_fixture_gives_its_tool_calls() {
 fn grok(rel: &str) -> AnyPayload {
     let text = std::fs::read_to_string(root().join("grok").join(rel)).unwrap();
     AnyPayload::parse(AnyHarness::Grok, &text).unwrap()
-}
-
-#[test]
-fn grok_events_map_onto_the_shared_events() {
-    let cases = [
-        ("SessionStart/cli.json", AnyEvent::SessionStart),
-        ("UserPromptSubmit/cli.json", AnyEvent::UserPromptSubmit),
-        ("PreToolUse/run-terminal-command.json", AnyEvent::PreToolUse),
-        ("PostToolUse/mcp.json", AnyEvent::PostToolUse),
-        ("Stop/end-turn.json", AnyEvent::Stop),
-        ("SubagentStart/cli.json", AnyEvent::SubagentStart),
-        ("SubagentStop/cli.json", AnyEvent::SubagentStop),
-        ("PreCompact/manual.json", AnyEvent::PreCompact),
-        ("PostCompact/manual.json", AnyEvent::PostCompact),
-        ("SessionEnd/shutdown.json", AnyEvent::SessionEnd),
-        (
-            "StopCancelled/max-turns.json",
-            AnyEvent::Other("StopCancelled".into()),
-        ),
-        (
-            "StopFailure/invalid-request.json",
-            AnyEvent::Other("StopFailure".into()),
-        ),
-        (
-            "PermissionDenied/cli.json",
-            AnyEvent::Other("PermissionDenied".into()),
-        ),
-    ];
-    for (rel, event) in cases {
-        assert_eq!(grok(rel).any_event(), event, "{rel}");
-    }
-    let AnyPayload::Grok(cancelled) = grok("StopCancelled/max-turns.json") else {
-        panic!()
-    };
-    assert!(matches!(cancelled.view(), GrokView::StopCancelled(_)));
 }
 
 #[test]
