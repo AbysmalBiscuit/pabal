@@ -481,11 +481,11 @@ The Claude-style names `Bash`, `Edit`, `Write` and `MultiEdit` are matcher alias
 
 | Trait | Events | Envelope and behavior |
 |---|---|---|
-| `Deny` | `PreToolUse` | `hookSpecificOutput.permissionDecision = "deny"` with `permissionDecisionReason`. The call does not run and the model reads `Hook denied: <reason>`. Grok clips the reason at 256 characters. |
+| `Deny` | `PreToolUse` | `hookSpecificOutput.permissionDecision = "deny"` with `permissionDecisionReason`. The call does not run and the model reads `Hook denied: <reason>`. Grok clips the reason at 256 characters (`MAX_REASON_CHARS` in `crates/codegen/xai-grok-hooks/src/event.rs`). |
 | `Ask` | `PreToolUse` | `permissionDecision = "ask"`. Grok raises its permission prompt even where a mode or saved grant would have approved the call; tried headless, the call that otherwise ran unprompted raised a `permission_prompt` `Notification` and ended the turn with `StopCancelled` (`permission_cancelled`). |
 | `RewriteInput` | `PreToolUse` | `hookSpecificOutput.updatedInput`, with `additionalContext` when given, and no decision. The call runs with the new input, which the `PostToolUse` payload also shows. A new input that fails the tool's schema blocks the call. |
 | `AddContext` | `PreToolUse`, `PostToolUse` | `hookSpecificOutput.additionalContext`. Both reach the model after the call has run, beside its result, in a reminder naming the hook. |
-| `Block` | `Stop`, `SubagentStop` | `{"decision": "block", "reason": reason}`. The model reads the reason as `Stop hook feedback` and runs another round, with `stopHookActive: true` on the next `Stop` or `SubagentStop`. Grok ends the turn after 8 continuations. |
+| `Block` | `Stop`, `SubagentStop` | `{"decision": "block", "reason": reason}`. The model reads the reason as `Stop hook feedback` and runs another round, with `stopHookActive: true` on the next `Stop` or `SubagentStop`. Grok ends the turn after 8 continuations (`MAX_STOP_HOOK_CONTINUATIONS_PER_TURN` in `crates/codegen/xai-grok-shell/src/session/acp_session_impl/stop_gate.rs`). |
 
 No `Allow`: Grok reads `allow` as "not blocked" and still prompts. No `AddContext` on `SessionStart` (stdout ignored), `UserPromptSubmit` (an allowing hook's stdout is discarded) or `SubagentStart` (passive), so `AnySessionStart`, `AnyUserPromptSubmit` and `AnySubagentStart` return `None` for Grok. `defer`, `updatedToolOutput` and `updatedMCPToolOutput` on `PostToolUse`, `decision: "block"` on `PostToolUse` and `UserPromptSubmit`, `continue: false` on `Stop`, and `additionalContext` on `Stop` and `PostToolUseFailure` have no consumer yet, so they have no trait.
 
