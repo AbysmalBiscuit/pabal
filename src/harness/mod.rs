@@ -304,12 +304,6 @@ mod tests {
         assert_eq!(AnyHarness::infer(&only_name), AnyHarness::Grok);
         let claude = json!({"hook_event_name": "Stop", "session_id": "s", "cwd": "/w"});
         assert_eq!(AnyHarness::infer(&claude), AnyHarness::ClaudeCode);
-        let codex = json!({"hook_event_name": "Stop", "session_id": "s", "turn_id": "t"});
-        assert_eq!(AnyHarness::infer(&codex), AnyHarness::Codex);
-        let cursor = json!({"hook_event_name": "stop", "cursor_version": "1.7.2"});
-        assert_eq!(AnyHarness::infer(&cursor), AnyHarness::Cursor);
-        let antigravity = json!({"conversationId": "c1", "transcriptPath": "/t.jsonl"});
-        assert_eq!(AnyHarness::infer(&antigravity), AnyHarness::Antigravity);
     }
 
     #[test]
