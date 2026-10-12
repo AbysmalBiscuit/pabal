@@ -1,6 +1,6 @@
 # pabal design
 
-Status: revised after review; Cursor and Antigravity added after v0.1.0 (see Cursor, Antigravity)
+Status: revised after review; Cursor, Antigravity and Grok added after v0.1.0 (see Cursor, Antigravity, Grok)
 Date: 2026-09-26
 
 ## Problem
@@ -27,7 +27,7 @@ In scope for v0.1.0:
 - Building the response JSON each harness reads from hook stdout.
 - A fixture corpus and CI that detects vendor drift.
 
-Added after v0.1.0: Cursor and Google Antigravity (see Cursor, Antigravity).
+Added after v0.1.0: Cursor, Google Antigravity and xAI Grok (see Cursor, Antigravity, Grok).
 
 Out of scope:
 
@@ -55,7 +55,7 @@ pabal/
   src/
     lib.rs          # module wiring, crate docs
     prelude.rs      # glob-importable re-exports
-    harness/        # Harness trait, ClaudeCode, Codex, Cursor, Antigravity, AnyHarness, inference
+    harness/        # Harness trait, ClaudeCode, Codex, Cursor, Antigravity, Grok, AnyHarness, inference
     event.rs        # per-harness event enums, AnyEvent
     payload.rs      # Payload<H>, Fields, AnyPayload
     view.rs         # per-harness view enums, per-event view types, AnyView
@@ -126,11 +126,11 @@ pub enum AnyPayload { ClaudeCode(Payload<ClaudeCode>), Codex(Payload<Codex>) }
 Both paths exist, and the explicit one wins:
 
 1. **Explicit.** The consumer names the harness (typically a `--harness` flag in its hook manifest) and parses with `Payload::<Codex>::parse(stdin)` or `AnyPayload::parse(AnyHarness::Codex, stdin)`.
-2. **Inferred.** `AnyHarness::infer(&raw)` reads positive evidence each harness sends, extracted from devkit's `infer_harness`. `conversationId` (camelCase) means Antigravity. A Cursor event name means Cursor, and so does any camelCase event with `cursor_version`. A PascalCase event with `cursor_version` reads as Claude Code: Cursor's docs say it sends Claude's event names to hooks configured for Claude Code, although the Cursor CLI sends them its own payload (see Cursor). Otherwise an event only one harness sends decides, then `turn_id` or `model` means Codex, and anything else is Claude Code.
+2. **Inferred.** `AnyHarness::infer(&raw)` reads positive evidence each harness sends, extracted from devkit's `infer_harness`. `hookEventName` or `workspaceRoot` (camelCase) means Grok, checked first because Grok's `hook_event_name` carries Claude Code's event names (see Grok). `conversationId` (camelCase) means Antigravity. A Cursor event name means Cursor, and so does any camelCase event with `cursor_version`. A PascalCase event with `cursor_version` reads as Claude Code: Cursor's docs say it sends Claude's event names to hooks configured for Claude Code, although the Cursor CLI sends them its own payload (see Cursor). Otherwise an event only one harness sends decides, then `turn_id` or `model` means Codex, and anything else is Claude Code.
 
 Inference is best-effort, and its docs name the two payload shapes it gets wrong. Codex `SessionEnd` carries neither `turn_id` nor `model` (its input schema requires only `cwd`, `hook_event_name`, `reason`, `session_id`, `transcript_path`), so it infers as Claude Code. Claude Code `SessionStart` sometimes carries `model`, so it infers as Codex. Consumers whose manifests can pass `--harness` should.
 
-Canonical names are `claude-code`, `codex`, `cursor` and `antigravity`, with `claude` accepted as an alias for `claude-code` so alacritree's installed manifests keep working. `strum` derives the string forms; the optional `clap` feature adds `ValueEnum`.
+Canonical names are `claude-code`, `codex`, `cursor`, `antigravity` and `grok`, with `claude` accepted as an alias for `claude-code` so alacritree's installed manifests keep working. `strum` derives the string forms; the optional `clap` feature adds `ValueEnum`.
 
 ### Events
 
@@ -160,6 +160,7 @@ v0.1.0 seed lists come from each vendor's own source, so the first drift run doe
 | Codex | PreToolUse, PostToolUse, PermissionRequest, SessionStart, SessionEnd, UserPromptSubmit, Stop, Interrupt, SubagentStart, SubagentStop, PreCompact, PostCompact | `codex-rs/hooks/schema/generated/*.command.input.schema.json` at rust-v0.155.1 |
 | Antigravity | PreToolUse, PostToolUse, PreInvocation, PostInvocation, Stop | [Antigravity hooks docs](https://antigravity.google/docs/hooks.md), read 2026-09-27 |
 | Cursor | sessionStart, sessionEnd, preToolUse, postToolUse, postToolUseFailure, subagentStart, subagentStop, beforeShellExecution, afterShellExecution, beforeMCPExecution, afterMCPExecution, beforeReadFile, afterFileEdit, beforeSubmitPrompt, preCompact, stop, afterAgentResponse, afterAgentThought, beforeTabFileRead, afterTabFileEdit, workspaceOpen | [Cursor hooks reference](https://cursor.com/docs/hooks.md), read 2026-09-27 |
+| Grok | SessionStart, UserPromptSubmit, PreToolUse, PostToolUse, PostToolUseFailure, PermissionDenied, Stop, StopFailure, StopCancelled, Notification, SubagentStart, SubagentStop, PreCompact, PostCompact, SessionEnd | the `hook_events!` list in grok-build's `crates/codegen/xai-grok-hooks/src/event.rs` at `2bdd1d6` |
 
 Every event gets a variant. Only the events a consumer handles get a dedicated view (see Views); the rest narrow to a generic view over the raw payload.
 
@@ -171,6 +172,8 @@ Every event gets a variant. Only the events a consumer handles get a dedicated v
 | `UserPromptSubmit` | `UserPromptSubmit` | `beforeSubmitPrompt` |
 | `PermissionRequest`, `PostCompact` | the event of the same name | none |
 | `Other(name)` | Codex `Interrupt` and every Claude-only event | every other Cursor event |
+
+Grok sends Claude Code's names, so its shared events map as Claude Code's do, `PostCompact` included; it sends no `PermissionRequest`. Its `PostToolUseFailure`, `PermissionDenied`, `StopFailure`, `Notification` and its own `StopCancelled` are `Other`.
 
 ### Payloads
 
@@ -206,12 +209,12 @@ Every accessor returns `Option`. An absent field, a JSON `null`, a wrong-typed v
 
 Each accessor reads the harness's own spelling of its field, from a per-harness key table (`Harness::KEYS`, hidden). Claude Code and Codex use the field of the accessor's name. `tool_use_id()` is on tool events for all three harnesses; Claude omits it on `PermissionRequest`.
 
-| Accessor | Cursor keys |
-|---|---|
-| `session_id()` | `session_id`, else `conversation_id`. Cursor sends `session_id` only on `sessionStart` and `sessionEnd`, where it equals `conversation_id`. |
-| `agent_id()` | `subagent_id` |
-| `agent()` | `subagent_id` when `subagent_type` is also set |
-| `cwd()`, `transcript_path()`, `tool_use_id()` | the field of the same name. Cursor sends `cwd` only on tool and shell events. |
+| Accessor | Cursor keys | Grok keys |
+|---|---|---|
+| `session_id()` | `session_id`, else `conversation_id`. Cursor sends `session_id` only on `sessionStart` and `sessionEnd`, where it equals `conversation_id`. | `sessionId`, else `session_id` |
+| `agent_id()` | `subagent_id` | `subagentId`, sent only on `SubagentStart` and `SubagentStop` |
+| `agent()` | `subagent_id` when `subagent_type` is also set | `subagentId`, else `sessionId`, when `subagentType` is also set |
+| `cwd()`, `transcript_path()`, `tool_use_id()` | the field of the same name. Cursor sends `cwd` only on tool and shell events. | `cwd`; `transcriptPath`, else `transcript_path`; `toolUseId`, else `tool_use_id` |
 
 `agent_id()` is the raw field. `agent()` applies the subagent rule, the same for both harnesses: `agent_id` only when `agent_type` is also present and non-empty. Claude forks side conversations (progress summaries, prompt suggestions) under a fresh `agent_id` with no `agent_type`, and a fork can end without `SubagentStop`, so a fork speaks for its session. Codex's schemas require `agent_id` and `agent_type` on `SubagentStart`/`SubagentStop` and make them optional elsewhere.
 
@@ -254,6 +257,7 @@ pub enum ShellKind {
 | Claude Code | From `tool_name`: `Bash` gives `Bash`, `PowerShell` gives `PowerShell` |
 | Codex | `None`. Its `Bash` tool name is the historical label for every shell tool (`core/src/tools/hook_names.rs`). The `shell` argument of `exec_command` is not in the hook input. |
 | Cursor | `None`. Its `Shell` tool names no shell. |
+| Grok | `None`. Its `run_terminal_command` tool names no shell. |
 
 Per-harness mapping (the tables live in `tool.rs`):
 
@@ -346,9 +350,9 @@ One `pabal::Error` (via `thiserror`) for input that is not a JSON object. Unknow
 
 ```rust
 use pabal::prelude::*;
-// ClaudeCode, Codex, Cursor, Antigravity, Harness, AnyHarness,
+// ClaudeCode, Codex, Cursor, Antigravity, Grok, Harness, AnyHarness,
 // Payload, AnyPayload, Fields,
-// ClaudeCodeView, CodexView, CursorView, AntigravityView, AnyView, AnyEvent,
+// ClaudeCodeView, CodexView, CursorView, AntigravityView, GrokView, AnyView, AnyEvent,
 // Tool, Edit, ToolCall, ShellKind,
 // Response, Deny, AddContext, Ask, Allow, RewriteInput, Block
 ```
@@ -385,6 +389,7 @@ A scheduled workflow (weekly) checks each harness against its upstream source:
 | Claude Code | `sdk.d.ts` in the latest `@anthropic-ai/claude-agent-sdk`: the `HOOK_EVENTS` constant and the `<Event>HookInput` types | Event list equals `ClaudeCodeEvent`; each required field of a `<Event>HookInput` appears in that event's fixtures |
 | Cursor | `https://cursor.com/docs/hooks.md`, the markdown form of the hooks reference. Cursor publishes no typings or schema. | The `#### <event>` headings under `### Hook events` equal `CursorEvent` |
 | Antigravity | `https://antigravity.google/docs/hooks.md`. Antigravity publishes no typings or schema. | The events in the `## Supported Events` table equal `AntigravityEvent` |
+| Grok | `crates/codegen/xai-grok-hooks/src/event.rs` at the head of `xai-org/grok-build`'s `main` | The first alias of each entry in the `hook_events!` list equals `GrokEvent`, skipping an entry whose `display` repeats an earlier one (`SubagentEnd`, an alias Grok collapses into `SubagentStop` before dispatch) |
 
 On drift, the job opens or updates one issue per harness listing what changed, and tags `@claude` in it to open a PR adding fixtures and variants. Each such PR is reviewed by hand, since a new variant is a minor bump for every consumer.
 
@@ -448,6 +453,45 @@ Google Antigravity is the second harness added after v0.1.0: an `Antigravity` ty
 `force_ask`, `deny_unless_prior_grant`, `permissionOverrides`, `injectSteps`, `terminationBehavior` and `Stop`'s `decision: "continue"` have no consumer yet, so they have no trait. `allow` has no trait either: the docs say it allows without a prompt, but the CLI still shows its approval prompt after `allow`, with or without `permissionOverrides`. `PostToolUse` has no response fields, so `AnyPostToolUse::add_context` returns `None` for Antigravity. `PreToolUse` has no input field, so there is no `RewriteInput` and `AnyPreToolUse::rewrite_input` returns `None`. Without `decision: "continue"` there is no `Block` on `Stop`, and `AnyStop::block` returns `None`.
 
 **Failure mode.** An empty stdout is no opinion: the tool falls through to Antigravity's own approval policy, so `Response::none()` is safe. Any non-zero exit, and stdout that is not JSON, block the tool with an error the agent sees, so a hook that crashes on Antigravity blocks every tool call.
+
+## Grok
+
+xAI's Grok CLI ([grok-build](https://github.com/xai-org/grok-build)) is the third harness added after v0.1.0: a `Grok` type, `GrokEvent`, `GrokView` and `AnyHarness::Grok`. Its facts come from grok-build `main` at `2bdd1d6`: `crates/codegen/xai-grok-hooks/src/event.rs` (events and payload), `crates/codegen/xai-grok-hooks/src/runner/mod.rs` (how answers are read) and `crates/codegen/xai-grok-pager/docs/user-guide/10-hooks.md` (the hooks guide). The fixtures under `tests/fixtures/grok/` are payloads captured from the `grok` CLI 1.0.52, with paths anonymized. The capture ran Grok against a local scripted chat-completions endpoint configured as a custom model in an isolated `GROK_HOME`, so every event, `PreCompact`, `StopFailure` and `StopCancelled` included, comes from the CLI itself. The answers below were tried against the same CLI.
+
+**Payload.** Grok sends camelCase keys (`hookEventName`, `sessionId`, `cwd`, `workspaceRoot`, `transcriptPath`, `promptId`, `permissionMode`, `toolName`, `toolUseId`, `toolInput`, `toolResult`, ...) and adds snake_case copies of a fixed set: `hook_event_name`, `session_id`, `transcript_path`, `permission_mode`, `tool_name`, `tool_input`, `tool_response`, `tool_use_id`, `duration_ms`, `is_interrupt`. Grok documents the camelCase keys as authoritative, so the accessors read them first. `hook_event_name` carries Claude Code's PascalCase name (`"Stop"`) and `hookEventName` Grok's snake_case one (`"stop"`); `GrokEvent` parses the first, so its wire names match Claude Code's.
+
+**Identification.** Because `hook_event_name` uses Claude Code's names, a Grok payload would otherwise infer as Claude Code. `hookEventName` and `workspaceRoot` are on every Grok payload and on no other harness's, so either one means Grok.
+
+**Events.** The shared events map to the `AnyEvent` of the same name (see Events). `StopCancelled` is Grok's own: it fires instead of `Stop` when a turn ends without completing (an interrupt, a declined or dismissed permission prompt, the turn limit, a no-progress bail-out), and is `Other`. A separate `Stop` with `reason: "shutdown"` fires at session end. grok-build also lists `SubagentEnd`, an alias Grok collapses into `SubagentStop` before dispatch: a hook registered under `SubagentEnd` receives `hook_event_name: "SubagentStop"` (captured), so `GrokEvent` has no `SubagentEnd` variant.
+
+**Subagents.** `SubagentStart` fires in the parent session with the child's `subagentId` and `subagentType`. A subagent's own events (`UserPromptSubmit`, tool events, `SubagentStop`, `SessionEnd`) carry the child's id as their `sessionId`, beside `subagentType`; only `SubagentStart` and `SubagentStop` carry `subagentId`. So `agent()` reads `subagentId`, else `sessionId`, whenever `subagentType` is set, and is `None` in the main session.
+
+**Tools.**
+
+| Variant | Grok tool |
+|---|---|
+| `Shell` | `run_terminal_command` with `toolInput.command`; `cwd` is the payload's `cwd`; `shell` is `None` |
+| `Edit::Write` | `search_replace` and `write`, both with `toolInput.file_path`, verbatim as the model sent it (often relative) |
+| `Mcp` | `toolName` `<server>__<tool>`, split at the first `__`. MCP calls go through the `use_tool` dispatcher, so `toolInput` is `{tool_name, tool_input}`; `input` is `toolInput.tool_input`, else the whole `toolInput` |
+| `Other` | everything else, including `read_file`, `spawn_subagent`, `list_dir` and `grep` |
+
+The Claude-style names `Bash`, `Edit`, `Write` and `MultiEdit` are matcher aliases only; payloads carry Grok's own names.
+
+**Responses.** Grok reads Claude Code's `hookSpecificOutput` envelope (it ignores `hookEventName` inside it), so Grok's answers reuse Claude Code's:
+
+| Trait | Events | Envelope and behavior |
+|---|---|---|
+| `Deny` | `PreToolUse` | `hookSpecificOutput.permissionDecision = "deny"` with `permissionDecisionReason`. The call does not run and the model reads `Hook denied: <reason>`. Grok clips the reason at 256 characters. |
+| `Ask` | `PreToolUse` | `permissionDecision = "ask"`. Grok raises its permission prompt even where a mode or saved grant would have approved the call; tried headless, the call that otherwise ran unprompted raised a `permission_prompt` `Notification` and ended the turn with `StopCancelled` (`permission_cancelled`). |
+| `RewriteInput` | `PreToolUse` | `hookSpecificOutput.updatedInput`, with `additionalContext` when given, and no decision. The call runs with the new input, which the `PostToolUse` payload also shows. A new input that fails the tool's schema blocks the call. |
+| `AddContext` | `PreToolUse`, `PostToolUse` | `hookSpecificOutput.additionalContext`. Both reach the model after the call has run, beside its result, in a reminder naming the hook. |
+| `Block` | `Stop`, `SubagentStop` | `{"decision": "block", "reason": reason}`. The model reads the reason as `Stop hook feedback` and runs another round, with `stopHookActive: true` on the next `Stop` or `SubagentStop`. Grok ends the turn after 8 continuations. |
+
+No `Allow`: Grok reads `allow` as "not blocked" and still prompts. No `AddContext` on `SessionStart` (stdout ignored), `UserPromptSubmit` (an allowing hook's stdout is discarded) or `SubagentStart` (passive), so `AnySessionStart`, `AnyUserPromptSubmit` and `AnySubagentStart` return `None` for Grok. `defer`, `updatedToolOutput` and `updatedMCPToolOutput` on `PostToolUse`, `decision: "block"` on `PostToolUse` and `UserPromptSubmit`, `continue: false` on `Stop`, and `additionalContext` on `Stop` and `PostToolUseFailure` have no consumer yet, so they have no trait.
+
+**Failure mode.** Every hook failure fails open: a timeout, a crash, a non-zero exit other than 2, or malformed output is recorded and the action proceeds. Only an explicit deny blocks a tool call; exit 2 also denies a `PreToolUse` (first stderr line as the reason) and blocks a `Stop` or `SubagentStop` (stderr as the feedback). A hook that exits non-zero keeps its deny or block but loses its `updatedInput` and `additionalContext`. An empty stdout is no opinion, so `Response::none()` is safe.
+
+**Other harnesses' hooks.** Grok also runs hooks from Claude Code's `settings.json` files and Cursor's `hooks.json`, and sends them this same payload. A hook pinned to another harness with an explicit harness keeps parsing it as that harness; `pabal` does not detect this case.
 
 ## Setup
 

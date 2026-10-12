@@ -14,8 +14,11 @@ A hook command reads a JSON payload on stdin and may answer with JSON on stdout.
 | Codex | `Codex` | `codex` |
 | Cursor | `Cursor` | `cursor` |
 | Google Antigravity | `Antigravity` | `antigravity` |
+| xAI Grok | `Grok` | `grok` |
 
 The Cursor CLI also runs hooks configured for Claude Code, and sends them its own payloads; those parse as `Cursor`.
+
+Grok also runs hooks from Claude Code's `settings.json` and Cursor's `hooks.json`, and sends them its own payloads. Its `hook_event_name` carries Claude Code's event names, so `AnyHarness::infer` tells it apart by its camelCase `hookEventName` and `workspaceRoot` keys; a hook pinned to another harness with an explicit harness keeps reading it as that harness.
 
 Antigravity leaves the event out of its payload. Have each hook command in `hooks.json` name its event, for example `my-hook --event PreToolUse`, and parse with `Payload::<Antigravity>::parse_named(event, stdin)`.
 
@@ -71,20 +74,22 @@ A response method exists only on the events whose harness accepts it: `deny` on 
 
 The answers a `PreToolUse` view offers on each harness. On `AnyPreToolUse` the methods missing here return `None`.
 
-| Answer | Claude Code | Codex | Cursor | Antigravity |
-|---|---|---|---|---|
-| `deny` | yes | yes | yes | yes |
-| `ask` | yes | no | no | yes |
-| `allow_skipping_prompt` | yes | no | no | no |
-| `add_context` | yes | yes | yes | no |
-| `rewrite_input` | yes | yes | yes | no |
+| Answer | Claude Code | Codex | Cursor | Antigravity | Grok |
+|---|---|---|---|---|---|
+| `deny` | yes | yes | yes | yes | yes |
+| `ask` | yes | no | no | yes | yes |
+| `allow_skipping_prompt` | yes | no | no | no | no |
+| `add_context` | yes | yes | yes | no | yes |
+| `rewrite_input` | yes | yes | yes | no | yes |
+
+Grok delivers `add_context` text after the call has run, beside its result. It ignores context on `SessionStart`, `UserPromptSubmit` and `SubagentStart`, so `add_context` does not compile on those Grok views and returns `None` on their `Any*` views.
 
 `block` keeps the agent from ending its turn and gives it the reason as its next prompt. On `AnyStop` and `AnySubagentStop` it returns `None` where this table says no.
 
-| Event | Claude Code | Codex | Cursor | Antigravity |
-|---|---|---|---|---|
-| `Stop` | yes | yes | yes | no |
-| `SubagentStop` | yes | yes | no | not sent |
+| Event | Claude Code | Codex | Cursor | Antigravity | Grok |
+|---|---|---|---|---|---|
+| `Stop` | yes | yes | yes | no | yes |
+| `SubagentStop` | yes | yes | no | not sent | yes |
 
 ## Exhaustive enums and semver
 
