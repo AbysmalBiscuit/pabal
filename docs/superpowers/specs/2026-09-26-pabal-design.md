@@ -207,7 +207,7 @@ fn raw(&self) -> &serde_json::Value;
 
 Every accessor returns `Option`. An absent field, a JSON `null`, a wrong-typed value and an empty string are all `None`. Codex sends `transcript_path: null` on some sessions (alacritree fixture `codex-session-start.json`). Anything `pabal` does not model stays reachable through `raw()`: `tool_response` (untyped in Codex's schema), `prompt`, `permission_suggestions`, `exit_code`.
 
-Each accessor reads the harness's own spelling of its field, from a per-harness key table (`Harness::KEYS`, hidden). Claude Code and Codex use the field of the accessor's name. `tool_use_id()` is on tool events for all three harnesses; Claude omits it on `PermissionRequest`.
+Each accessor reads the harness's own spelling of its field, from a per-harness key table (`Harness::KEYS`, hidden). Claude Code and Codex use the field of the accessor's name. `tool_use_id()` is on tool events for every harness; Claude omits it on `PermissionRequest`.
 
 | Accessor | Cursor keys | Grok keys |
 |---|---|---|
@@ -216,7 +216,7 @@ Each accessor reads the harness's own spelling of its field, from a per-harness 
 | `agent()` | `subagent_id` when `subagent_type` is also set | `subagentId`, else `sessionId`, when `subagentType` is also set |
 | `cwd()`, `transcript_path()`, `tool_use_id()` | the field of the same name. Cursor sends `cwd` only on tool and shell events. | `cwd`; `transcriptPath`, else `transcript_path`; `toolUseId`, else `tool_use_id` |
 
-`agent_id()` is the raw field. `agent()` applies the subagent rule, the same for both harnesses: `agent_id` only when `agent_type` is also present and non-empty. Claude forks side conversations (progress summaries, prompt suggestions) under a fresh `agent_id` with no `agent_type`, and a fork can end without `SubagentStop`, so a fork speaks for its session. Codex's schemas require `agent_id` and `agent_type` on `SubagentStart`/`SubagentStop` and make them optional elsewhere.
+`agent_id()` is the raw field. `agent()` applies the subagent rule: it reads the harness's agent keys only when `agent_type` is also present and non-empty, and Grok falls back to `sessionId` when `subagentId` is absent. Claude forks side conversations (progress summaries, prompt suggestions) under a fresh `agent_id` with no `agent_type`, and a fork can end without `SubagentStop`, so a fork speaks for its session. Codex's schemas require `agent_id` and `agent_type` on `SubagentStart`/`SubagentStop` and make them optional elsewhere.
 
 mcpls reads raw `agent_id` today. Its migration picks between `agent_id()` and `agent()` deliberately, since `agent()` stops attributing Claude forks.
 
