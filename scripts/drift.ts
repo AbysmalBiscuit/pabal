@@ -200,17 +200,25 @@ async function report(harness: Harness, findings: string[], dryRun: boolean) {
 async function main() {
   const dryRun = process.argv.includes("--dry-run");
   const crate: Record<Harness, string[]> = await $`cargo run -q --example events`.cwd(root).json();
-  const results: [Harness, string[]][] = [
-    ["codex", await codex(crate.codex)],
-    ["claude-code", await claude(crate["claude-code"])],
-    ["cursor", await cursor(crate.cursor)],
-    ["antigravity", await antigravity(crate.antigravity)],
-    ["grok", await grok(crate.grok)],
+  const sources: [Harness, (crate: string[]) => Promise<string[]>][] = [
+    ["codex", codex],
+    ["claude-code", claude],
+    ["cursor", cursor],
+    ["antigravity", antigravity],
+    ["grok", grok],
   ];
-  for (const [harness, findings] of results) {
-    if (findings.length > 0) await report(harness, findings, dryRun);
-    else console.log(`${harness}: no drift`);
+  let failed = false;
+  for (const [harness, check] of sources) {
+    try {
+      const findings = await check(crate[harness]);
+      if (findings.length > 0) await report(harness, findings, dryRun);
+      else console.log(`${harness}: no drift`);
+    } catch (e) {
+      failed = true;
+      console.error(`${harness}: check failed:`, e);
+    }
   }
+  if (failed) process.exit(1);
 }
 
 if (import.meta.main) {
