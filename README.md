@@ -53,7 +53,7 @@ use pabal::prelude::*;
 let stdin = r#"{"hook_event_name":"SessionStart","session_id":"s1"}"#;
 let payload = AnyPayload::parse(AnyHarness::ClaudeCode, stdin).unwrap();
 let response = match payload.view() {
-    AnyView::SessionStart(start) => start.add_context("tasks: none"),
+    AnyView::SessionStart(start) => start.add_context("tasks: none").unwrap_or_default(),
     _ => Response::none(),
 };
 assert_eq!(

@@ -123,6 +123,32 @@ pub enum AntigravityEvent {
     Other(String),
 }
 
+/// An xAI Grok hook event, named as Grok sends `hook_event_name`: Claude
+/// Code's PascalCase name. Grok's own snake_case name is in `hookEventName`.
+#[derive(Debug, Clone, PartialEq, Eq, strum::EnumString, strum::Display, strum::EnumIter)]
+#[allow(missing_docs, reason = "each variant is its wire name")]
+pub enum GrokEvent {
+    SessionStart,
+    UserPromptSubmit,
+    PreToolUse,
+    PostToolUse,
+    PostToolUseFailure,
+    PermissionDenied,
+    Stop,
+    StopFailure,
+    /// Sent instead of `Stop` when a turn ends without completing.
+    StopCancelled,
+    Notification,
+    SubagentStart,
+    SubagentStop,
+    PreCompact,
+    PostCompact,
+    SessionEnd,
+    /// An event this version does not know, with its wire name.
+    #[strum(default)]
+    Other(String),
+}
+
 /// An event several harnesses send, or `Other` with the harness's own name.
 #[derive(Debug, Clone, PartialEq, Eq, strum::Display)]
 #[allow(missing_docs, reason = "each variant is its wire name")]
@@ -211,12 +237,35 @@ impl EventKind for CursorEvent {
     }
 }
 
+impl EventKind for GrokEvent {
+    known!();
+
+    fn to_any(&self) -> AnyEvent {
+        match self {
+            Self::SessionStart => AnyEvent::SessionStart,
+            Self::SessionEnd => AnyEvent::SessionEnd,
+            Self::UserPromptSubmit => AnyEvent::UserPromptSubmit,
+            Self::PreToolUse => AnyEvent::PreToolUse,
+            Self::PostToolUse => AnyEvent::PostToolUse,
+            Self::SubagentStart => AnyEvent::SubagentStart,
+            Self::SubagentStop => AnyEvent::SubagentStop,
+            Self::Stop => AnyEvent::Stop,
+            Self::PreCompact => AnyEvent::PreCompact,
+            Self::PostCompact => AnyEvent::PostCompact,
+            other => AnyEvent::Other(other.to_string()),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn wire_names_round_trip() {
+        for e in GrokEvent::known() {
+            assert_eq!(GrokEvent::from(e.to_string().as_str()), e);
+        }
         for e in ClaudeCodeEvent::known() {
             assert_eq!(ClaudeCodeEvent::from(e.to_string().as_str()), e);
         }
@@ -267,6 +316,7 @@ mod tests {
         assert_eq!(CodexEvent::known().len(), 12);
         assert_eq!(CursorEvent::known().len(), 21);
         assert_eq!(AntigravityEvent::known().len(), 5);
+        assert_eq!(GrokEvent::known().len(), 15);
         assert!(!CodexEvent::known().contains(&CodexEvent::Other(String::new())));
     }
 
@@ -295,6 +345,11 @@ mod tests {
             AnyEvent::Other("beforeShellExecution".into())
         );
         assert_eq!(AntigravityEvent::Stop.to_any(), AnyEvent::Stop);
+        assert_eq!(GrokEvent::PostCompact.to_any(), AnyEvent::PostCompact);
+        assert_eq!(
+            GrokEvent::StopCancelled.to_any(),
+            AnyEvent::Other("StopCancelled".into())
+        );
         assert_eq!(
             AntigravityEvent::PreInvocation.to_any(),
             AnyEvent::Other("PreInvocation".into())

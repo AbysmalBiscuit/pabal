@@ -1,0 +1,12 @@
+{
+  "hookEventName": "pre_compact",
+  "sessionId": "01a1316a-e4d5-7cf3-8497-4419e67a1860",
+  "cwd": "/home/user/project",
+  "workspaceRoot": "/home/user/project",
+  "timestamp": "2026-10-12T18:40:51.585044134+00:00",
+  "permissionMode": "bypassPermissions",
+  "source": "manual",
+  "hook_event_name": "PreCompact",
+  "session_id": "01a1316a-e4d5-7cf3-8497-4419e67a1860",
+  "permission_mode": "bypassPermissions"
+}

@@ -1,0 +1,26 @@
+{
+  "hookEventName": "permission_denied",
+  "sessionId": "01a13169-b34a-7590-ac80-05f5ffc510b2",
+  "cwd": "/home/user/project",
+  "workspaceRoot": "/home/user/project",
+  "timestamp": "2026-10-12T18:39:33.673395830+00:00",
+  "transcriptPath": "/home/user/.grok/sessions/%2Fhome%2Fuser%2Fproject/01a13169-b34a-7590-ac80-05f5ffc510b2/updates.jsonl",
+  "permissionMode": "auto",
+  "toolName": "run_terminal_command",
+  "toolUseId": "call_42_0",
+  "toolInput": {
+    "command": "echo denied-probe",
+    "description": "probe"
+  },
+  "toolInputTruncated": false,
+  "hook_event_name": "PermissionDenied",
+  "session_id": "01a13169-b34a-7590-ac80-05f5ffc510b2",
+  "transcript_path": "/home/user/.grok/sessions/%2Fhome%2Fuser%2Fproject/01a13169-b34a-7590-ac80-05f5ffc510b2/updates.jsonl",
+  "permission_mode": "auto",
+  "tool_name": "run_terminal_command",
+  "tool_input": {
+    "command": "echo denied-probe",
+    "description": "probe"
+  },
+  "tool_use_id": "call_42_0"
+}

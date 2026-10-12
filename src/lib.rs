@@ -11,9 +11,11 @@ mod tool;
 pub mod view;
 
 pub use error::Error;
-pub use event::{AntigravityEvent, AnyEvent, ClaudeCodeEvent, CodexEvent, CursorEvent, EventKind};
-pub use harness::{Antigravity, AnyHarness, ClaudeCode, Codex, Cursor, Harness};
+pub use event::{
+    AntigravityEvent, AnyEvent, ClaudeCodeEvent, CodexEvent, CursorEvent, EventKind, GrokEvent,
+};
+pub use harness::{Antigravity, AnyHarness, ClaudeCode, Codex, Cursor, Grok, Harness};
 pub use payload::{AnyPayload, Fields, Payload};
 pub use response::{AddContext, Allow, Ask, Block, Deny, Response, RewriteInput};
 pub use tool::{Edit, ShellKind, Tool, ToolCall};
-pub use view::{AntigravityView, AnyView, ClaudeCodeView, CodexView, CursorView};
+pub use view::{AntigravityView, AnyView, ClaudeCodeView, CodexView, CursorView, GrokView};

@@ -1,0 +1,14 @@
+{
+  "hookEventName": "session_end",
+  "sessionId": "01a13169-8a7b-7291-a616-1feeac449524",
+  "cwd": "/home/user/project",
+  "workspaceRoot": "/home/user/project",
+  "timestamp": "2026-10-12T18:39:24.266269867+00:00",
+  "transcriptPath": "/home/user/.grok/sessions/%2Fhome%2Fuser%2Fproject/01a13169-8a7b-7291-a616-1feeac449524/updates.jsonl",
+  "permissionMode": "bypassPermissions",
+  "reason": "shutdown",
+  "hook_event_name": "SessionEnd",
+  "session_id": "01a13169-8a7b-7291-a616-1feeac449524",
+  "transcript_path": "/home/user/.grok/sessions/%2Fhome%2Fuser%2Fproject/01a13169-8a7b-7291-a616-1feeac449524/updates.jsonl",
+  "permission_mode": "bypassPermissions"
+}

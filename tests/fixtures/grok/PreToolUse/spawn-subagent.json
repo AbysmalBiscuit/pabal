@@ -1,0 +1,30 @@
+{
+  "hookEventName": "pre_tool_use",
+  "sessionId": "01a13169-8a7b-7291-a616-1feeac449524",
+  "cwd": "/home/user/project",
+  "workspaceRoot": "/home/user/project",
+  "timestamp": "2026-10-12T18:39:23.182314507+00:00",
+  "transcriptPath": "/home/user/.grok/sessions/%2Fhome%2Fuser%2Fproject/01a13169-8a7b-7291-a616-1feeac449524/updates.jsonl",
+  "permissionMode": "bypassPermissions",
+  "toolName": "spawn_subagent",
+  "toolUseId": "call_34_0",
+  "toolInput": {
+    "prompt": "read a.txt",
+    "description": "probe sub",
+    "subagent_type": "explore",
+    "background": false
+  },
+  "toolInputTruncated": false,
+  "hook_event_name": "PreToolUse",
+  "session_id": "01a13169-8a7b-7291-a616-1feeac449524",
+  "transcript_path": "/home/user/.grok/sessions/%2Fhome%2Fuser%2Fproject/01a13169-8a7b-7291-a616-1feeac449524/updates.jsonl",
+  "permission_mode": "bypassPermissions",
+  "tool_name": "spawn_subagent",
+  "tool_input": {
+    "prompt": "read a.txt",
+    "description": "probe sub",
+    "subagent_type": "explore",
+    "background": false
+  },
+  "tool_use_id": "call_34_0"
+}

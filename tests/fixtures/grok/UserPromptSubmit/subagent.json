@@ -1,0 +1,14 @@
+{
+  "hookEventName": "user_prompt_submit",
+  "sessionId": "01a13169-8c39-7383-98ff-c133574173d3",
+  "cwd": "/home/user/project",
+  "workspaceRoot": "/home/user/project",
+  "timestamp": "2026-10-12T18:39:23.268622259+00:00",
+  "promptId": "01a13169-8c76-7272-af5b-3c5ce78df8cd",
+  "permissionMode": "bypassPermissions",
+  "prompt": "read a.txt",
+  "subagentType": "explore",
+  "hook_event_name": "UserPromptSubmit",
+  "session_id": "01a13169-8c39-7383-98ff-c133574173d3",
+  "permission_mode": "bypassPermissions"
+}

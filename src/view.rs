@@ -7,7 +7,7 @@ use serde_json::Value;
 
 use crate::{
     Antigravity, AnyEvent, AnyPayload, ClaudeCode, Codex, Cursor, CursorEvent, EventKind, Fields,
-    Harness, Payload, ToolCall, payload::text,
+    Grok, Harness, Payload, ToolCall, payload::text,
 };
 
 /// A view of an event this crate does not model; the payload is all it has.
@@ -89,20 +89,22 @@ macro_rules! shared_views {
 }
 
 shared_views! {
-    SessionStart AnySessionStart HasSessionStart session_start [ClaudeCode Codex Cursor];
-    SessionEnd AnySessionEnd HasSessionEnd session_end [ClaudeCode Codex Cursor];
+    SessionStart AnySessionStart HasSessionStart session_start [ClaudeCode Codex Cursor Grok];
+    SessionEnd AnySessionEnd HasSessionEnd session_end [ClaudeCode Codex Cursor Grok];
     UserPromptSubmit AnyUserPromptSubmit HasUserPromptSubmit user_prompt_submit
-        [ClaudeCode Codex Cursor];
-    PreToolUse AnyPreToolUse HasPreToolUse pre_tool_use [ClaudeCode Codex Cursor Antigravity];
+        [ClaudeCode Codex Cursor Grok];
+    PreToolUse AnyPreToolUse HasPreToolUse pre_tool_use
+        [ClaudeCode Codex Cursor Antigravity Grok];
     PostToolUse AnyPostToolUse HasPostToolUse post_tool_use
-        [ClaudeCode Codex Cursor Antigravity];
+        [ClaudeCode Codex Cursor Antigravity Grok];
     PermissionRequest AnyPermissionRequest HasPermissionRequest permission_request
         [ClaudeCode Codex];
-    SubagentStart AnySubagentStart HasSubagentStart subagent_start [ClaudeCode Codex Cursor];
-    SubagentStop AnySubagentStop HasSubagentStop subagent_stop [ClaudeCode Codex Cursor];
-    Stop AnyStop HasStop stop [ClaudeCode Codex Cursor Antigravity];
-    PreCompact AnyPreCompact HasPreCompact pre_compact [ClaudeCode Codex Cursor];
-    PostCompact AnyPostCompact HasPostCompact post_compact [ClaudeCode Codex];
+    SubagentStart AnySubagentStart HasSubagentStart subagent_start
+        [ClaudeCode Codex Cursor Grok];
+    SubagentStop AnySubagentStop HasSubagentStop subagent_stop [ClaudeCode Codex Cursor Grok];
+    Stop AnyStop HasStop stop [ClaudeCode Codex Cursor Antigravity Grok];
+    PreCompact AnyPreCompact HasPreCompact pre_compact [ClaudeCode Codex Cursor Grok];
+    PostCompact AnyPostCompact HasPostCompact post_compact [ClaudeCode Codex Grok];
 }
 
 macro_rules! harness_views {
@@ -284,6 +286,29 @@ pub enum AntigravityView<'a> {
     PostInvocation(Raw<'a, Antigravity>),
     Stop(Stop<'a, Antigravity>),
     Other(Raw<'a, Antigravity>),
+}
+
+/// A Grok payload narrowed to its event. `StopCancelled` is Grok's own: it is
+/// sent instead of `Stop` when a turn ends without completing.
+#[derive(Debug, Clone, Copy)]
+#[allow(missing_docs, reason = "each variant is its wire name")]
+pub enum GrokView<'a> {
+    SessionStart(SessionStart<'a, Grok>),
+    UserPromptSubmit(UserPromptSubmit<'a, Grok>),
+    PreToolUse(PreToolUse<'a, Grok>),
+    PostToolUse(PostToolUse<'a, Grok>),
+    PostToolUseFailure(Raw<'a, Grok>),
+    PermissionDenied(Raw<'a, Grok>),
+    Stop(Stop<'a, Grok>),
+    StopFailure(Raw<'a, Grok>),
+    StopCancelled(Raw<'a, Grok>),
+    Notification(Raw<'a, Grok>),
+    SubagentStart(SubagentStart<'a, Grok>),
+    SubagentStop(SubagentStop<'a, Grok>),
+    PreCompact(PreCompact<'a, Grok>),
+    PostCompact(PostCompact<'a, Grok>),
+    SessionEnd(SessionEnd<'a, Grok>),
+    Other(Raw<'a, Grok>),
 }
 
 #[cfg(test)]

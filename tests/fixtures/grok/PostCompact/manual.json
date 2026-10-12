@@ -1,0 +1,14 @@
+{
+  "hookEventName": "post_compact",
+  "sessionId": "01a1316a-e4d5-7cf3-8497-4419e67a1860",
+  "cwd": "/home/user/project",
+  "workspaceRoot": "/home/user/project",
+  "timestamp": "2026-10-12T18:40:51.868728323+00:00",
+  "transcriptPath": "/home/user/.grok/sessions/%2Fhome%2Fuser%2Fproject/01a1316a-e4d5-7cf3-8497-4419e67a1860/updates.jsonl",
+  "permissionMode": "bypassPermissions",
+  "source": "manual",
+  "hook_event_name": "PostCompact",
+  "session_id": "01a1316a-e4d5-7cf3-8497-4419e67a1860",
+  "transcript_path": "/home/user/.grok/sessions/%2Fhome%2Fuser%2Fproject/01a1316a-e4d5-7cf3-8497-4419e67a1860/updates.jsonl",
+  "permission_mode": "bypassPermissions"
+}

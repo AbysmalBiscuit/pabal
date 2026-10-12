@@ -1,0 +1,24 @@
+{
+  "hookEventName": "pre_tool_use",
+  "sessionId": "01a13168-584d-7843-9767-0ef65e885cd5",
+  "cwd": "/home/user/project",
+  "workspaceRoot": "/home/user/project",
+  "timestamp": "2026-10-12T18:38:05.099825426+00:00",
+  "transcriptPath": "/home/user/.grok/sessions/%2Fhome%2Fuser%2Fproject/01a13168-584d-7843-9767-0ef65e885cd5/updates.jsonl",
+  "permissionMode": "bypassPermissions",
+  "toolName": "read_file",
+  "toolUseId": "call_4_0",
+  "toolInput": {
+    "target_file": "a.txt"
+  },
+  "toolInputTruncated": false,
+  "hook_event_name": "PreToolUse",
+  "session_id": "01a13168-584d-7843-9767-0ef65e885cd5",
+  "transcript_path": "/home/user/.grok/sessions/%2Fhome%2Fuser%2Fproject/01a13168-584d-7843-9767-0ef65e885cd5/updates.jsonl",
+  "permission_mode": "bypassPermissions",
+  "tool_name": "read_file",
+  "tool_input": {
+    "target_file": "a.txt"
+  },
+  "tool_use_id": "call_4_0"
+}

@@ -1,0 +1,19 @@
+{
+  "hookEventName": "stop",
+  "sessionId": "01a13168-584d-7843-9767-0ef65e885cd5",
+  "cwd": "/home/user/project",
+  "workspaceRoot": "/home/user/project",
+  "timestamp": "2026-10-12T18:38:05.425438625+00:00",
+  "transcriptPath": "/home/user/.grok/sessions/%2Fhome%2Fuser%2Fproject/01a13168-584d-7843-9767-0ef65e885cd5/updates.jsonl",
+  "promptId": "150af8bb-a780-40f5-b0d5-0fc9a4826233",
+  "permissionMode": "bypassPermissions",
+  "reason": "end_turn",
+  "stopHookActive": false,
+  "lastAssistantMessage": "all done",
+  "backgroundTasks": [],
+  "sessionCrons": [],
+  "hook_event_name": "Stop",
+  "session_id": "01a13168-584d-7843-9767-0ef65e885cd5",
+  "transcript_path": "/home/user/.grok/sessions/%2Fhome%2Fuser%2Fproject/01a13168-584d-7843-9767-0ef65e885cd5/updates.jsonl",
+  "permission_mode": "bypassPermissions"
+}

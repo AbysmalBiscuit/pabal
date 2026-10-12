@@ -1,0 +1,78 @@
+{
+  "hookEventName": "post_tool_use",
+  "sessionId": "01a13168-584d-7843-9767-0ef65e885cd5",
+  "cwd": "/home/user/project",
+  "workspaceRoot": "/home/user/project",
+  "timestamp": "2026-10-12T18:38:05.205759604+00:00",
+  "transcriptPath": "/home/user/.grok/sessions/%2Fhome%2Fuser%2Fproject/01a13168-584d-7843-9767-0ef65e885cd5/updates.jsonl",
+  "permissionMode": "bypassPermissions",
+  "toolName": "search_replace",
+  "toolUseId": "call_5_0",
+  "toolInput": {
+    "file_path": "a.txt",
+    "old_string": "hello",
+    "new_string": "hi"
+  },
+  "toolResult": {
+    "type": "SearchReplace",
+    "EditsApplied": {
+      "old_string": "hello",
+      "new_string": "hi",
+      "tool_output_for_prompt": "The file a.txt has been updated successfully.",
+      "tool_output_for_prompt_concise": "The file a.txt has been updated.",
+      "absolute_path": "/home/user/project/a.txt",
+      "edits": {
+        "details": [
+          {
+            "old_string": "hello",
+            "old_line": 1,
+            "new_string": "hi",
+            "new_line": 1,
+            "context_before": "",
+            "context_after": "",
+            "line_prefix": ""
+          }
+        ]
+      }
+    }
+  },
+  "toolInputTruncated": false,
+  "toolResultTruncated": false,
+  "durationMs": 1,
+  "isBackgrounded": false,
+  "hook_event_name": "PostToolUse",
+  "session_id": "01a13168-584d-7843-9767-0ef65e885cd5",
+  "transcript_path": "/home/user/.grok/sessions/%2Fhome%2Fuser%2Fproject/01a13168-584d-7843-9767-0ef65e885cd5/updates.jsonl",
+  "permission_mode": "bypassPermissions",
+  "tool_name": "search_replace",
+  "tool_input": {
+    "file_path": "a.txt",
+    "old_string": "hello",
+    "new_string": "hi"
+  },
+  "tool_response": {
+    "type": "SearchReplace",
+    "EditsApplied": {
+      "old_string": "hello",
+      "new_string": "hi",
+      "tool_output_for_prompt": "The file a.txt has been updated successfully.",
+      "tool_output_for_prompt_concise": "The file a.txt has been updated.",
+      "absolute_path": "/home/user/project/a.txt",
+      "edits": {
+        "details": [
+          {
+            "old_string": "hello",
+            "old_line": 1,
+            "new_string": "hi",
+            "new_line": 1,
+            "context_before": "",
+            "context_after": "",
+            "line_prefix": ""
+          }
+        ]
+      }
+    }
+  },
+  "tool_use_id": "call_5_0",
+  "duration_ms": 1
+}

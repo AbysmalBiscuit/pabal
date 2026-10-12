@@ -1,0 +1,19 @@
+{
+  "hookEventName": "subagent_stop",
+  "sessionId": "01a13169-8c39-7383-98ff-c133574173d3",
+  "cwd": "/home/user/project",
+  "workspaceRoot": "/home/user/project",
+  "timestamp": "2026-10-12T18:39:23.853862289+00:00",
+  "transcriptPath": "/home/user/.grok/sessions/%2Fhome%2Fuser%2Fproject/01a13169-8c39-7383-98ff-c133574173d3/updates.jsonl",
+  "promptId": "01a13169-8c76-7272-af5b-3c5ce78df8cd",
+  "permissionMode": "bypassPermissions",
+  "phase": "gate",
+  "subagentId": "01a13169-8c39-7383-98ff-c133574173d3",
+  "subagentType": "explore",
+  "stopHookActive": false,
+  "lastAssistantMessage": "sub done",
+  "hook_event_name": "SubagentStop",
+  "session_id": "01a13169-8c39-7383-98ff-c133574173d3",
+  "transcript_path": "/home/user/.grok/sessions/%2Fhome%2Fuser%2Fproject/01a13169-8c39-7383-98ff-c133574173d3/updates.jsonl",
+  "permission_mode": "bypassPermissions"
+}

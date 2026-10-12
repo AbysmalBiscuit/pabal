@@ -3,7 +3,8 @@ use std::{marker::PhantomData, path::Path};
 use serde_json::Value;
 
 use crate::{
-    Antigravity, AnyEvent, AnyHarness, ClaudeCode, Codex, Cursor, Error, EventKind, Harness, Tool,
+    Antigravity, AnyEvent, AnyHarness, ClaudeCode, Codex, Cursor, Error, EventKind, Grok, Harness,
+    Tool,
 };
 
 /// A hook payload from harness `H`: its event and the raw JSON.
@@ -90,12 +91,14 @@ pub trait Fields {
     fn cwd(&self) -> Option<&Path>;
     /// The `transcript_path`, verbatim.
     fn transcript_path(&self) -> Option<&Path>;
-    /// The raw `agent_id` (Cursor: `subagent_id`), set for subagents and for
+    /// The raw `agent_id` (Cursor: `subagent_id`; Grok: `subagentId`, sent
+    /// only on `SubagentStart` and `SubagentStop`), set for subagents and for
     /// Claude Code forks alike.
     fn agent_id(&self) -> Option<&str>;
     /// The subagent this payload speaks for: `agent_id` when `agent_type`
-    /// (Cursor: `subagent_type`) is also set. A Claude Code fork has no
-    /// `agent_type` and speaks for its session.
+    /// (Cursor: `subagent_type`; Grok: `subagentType`) is also set. A Claude
+    /// Code fork has no `agent_type` and speaks for its session. A Grok
+    /// subagent's own events name it only by their session id.
     fn agent(&self) -> Option<&str>;
     /// The `tool_use_id` of a single-tool event.
     fn tool_use_id(&self) -> Option<&str>;
@@ -136,7 +139,7 @@ impl<H: Harness> Fields for Payload<H> {
     }
 
     fn agent(&self) -> Option<&str> {
-        first(&self.raw, H::KEYS.agent_type).and(self.agent_id())
+        first(&self.raw, H::KEYS.agent_type).and(first(&self.raw, H::KEYS.agent))
     }
 
     fn tool_use_id(&self) -> Option<&str> {
@@ -161,6 +164,7 @@ pub enum AnyPayload {
     Codex(Payload<Codex>),
     Cursor(Payload<Cursor>),
     Antigravity(Payload<Antigravity>),
+    Grok(Payload<Grok>),
 }
 
 impl AnyPayload {
@@ -186,6 +190,7 @@ impl AnyPayload {
             AnyHarness::Codex => Self::Codex(Payload::new(raw, event)?),
             AnyHarness::Cursor => Self::Cursor(Payload::new(raw, event)?),
             AnyHarness::Antigravity => Self::Antigravity(Payload::new(raw, event)?),
+            AnyHarness::Grok => Self::Grok(Payload::new(raw, event)?),
         })
     }
 
