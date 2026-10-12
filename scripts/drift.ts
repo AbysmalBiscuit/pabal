@@ -56,13 +56,33 @@ export function cursorEvents(md: string): string[] {
   return [...section.matchAll(/^#### (.+)$/gm)].flatMap((m) => m[1].split(" / ").map((e) => e.trim()));
 }
 
-/** The first-column events of the table under `## Supported Events` in Antigravity's hooks docs. */
+/** The first-column events of the table under `## Supported events` in Antigravity's hooks docs. */
 export function antigravityEvents(md: string): string[] {
-  const start = md.indexOf("\n## Supported Events");
-  if (start < 0) throw new Error("## Supported Events not found in Antigravity's hooks docs");
+  const start = md.search(/\n## Supported events/i);
+  if (start < 0) throw new Error("## Supported events not found in Antigravity's hooks docs");
   const end = md.slice(start + 1).search(/\n#{2,3} /);
   const section = md.slice(start, end < 0 ? undefined : start + 1 + end);
   return [...section.matchAll(/^\| `(\w+)` \|/gm)].map((m) => m[1]);
+}
+
+/**
+ * The first alias of each event in grok-build's `hook_events! { ... }` list: the PascalCase name
+ * Grok sends as `hook_event_name`. An event whose `display` repeats an earlier one is an alias
+ * Grok collapses before dispatch (`SubagentEnd` for `SubagentStop`), so it is skipped.
+ */
+export function grokEvents(rs: string): string[] {
+  const start = rs.indexOf("\nhook_events! {");
+  if (start < 0) throw new Error("hook_events! { not found in xai-grok-hooks/src/event.rs");
+  const end = rs.indexOf("\n}", start);
+  const list = rs.slice(start, end < 0 ? undefined : end);
+  const seen = new Set<string>();
+  return [...list.matchAll(/^ {4}\w+ \{\s*display: "([^"]+)",\s*aliases: \[\s*"([^"]+)"/gm)].flatMap(
+    ([, display, name]) => {
+      if (seen.has(display)) return [];
+      seen.add(display);
+      return [name];
+    },
+  );
 }
 
 export function diff(upstream: string[], crate: string[]): { added: string[]; removed: string[] } {
@@ -72,7 +92,7 @@ export function diff(upstream: string[], crate: string[]): { added: string[]; re
   };
 }
 
-type Harness = "claude-code" | "codex" | "cursor" | "antigravity";
+type Harness = "claude-code" | "codex" | "cursor" | "antigravity" | "grok";
 
 function eventFindings(upstream: string[], crate: string[], source: string): string[] {
   const { added, removed } = diff(upstream, crate);
@@ -83,9 +103,8 @@ function eventFindings(upstream: string[], crate: string[], source: string): str
 }
 
 async function codex(crate: string[]): Promise<string[]> {
-  const tags = await $`gh api repos/openai/codex/releases --paginate --jq '.[] | select(.prerelease | not) | .tag_name'`.text();
-  const tag = tags.split("\n").find((t) => t.startsWith("rust-v"));
-  if (!tag) throw new Error("no rust-v* release of openai/codex");
+  const tag = (await $`gh api repos/openai/codex/releases/latest --jq .tag_name`.text()).trim();
+  if (!tag.startsWith("rust-v")) throw new Error(`latest openai/codex release ${tag} is not rust-v*`);
   const dir = await mkdtemp(join(tmpdir(), "pabal-codex-"));
   const path = "codex-rs/hooks/schema/generated";
   const entries: { name: string; download_url: string }[] =
@@ -146,6 +165,15 @@ async function antigravity(crate: string[]): Promise<string[]> {
   return eventFindings(antigravityEvents(await res.text()), crate, url);
 }
 
+async function grok(crate: string[]): Promise<string[]> {
+  const path = "crates/codegen/xai-grok-hooks/src/event.rs";
+  const sha = (await $`gh api repos/xai-org/grok-build/commits/main --jq .sha`.text()).trim();
+  const url = `https://raw.githubusercontent.com/xai-org/grok-build/${sha}/${path}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`${url}: ${res.status}`);
+  return eventFindings(grokEvents(await res.text()), crate, `grok-build ${sha.slice(0, 7)} ${path}`);
+}
+
 async function report(harness: Harness, findings: string[], dryRun: boolean) {
   const title = `drift: ${harness}`;
   const body = [
@@ -172,16 +200,25 @@ async function report(harness: Harness, findings: string[], dryRun: boolean) {
 async function main() {
   const dryRun = process.argv.includes("--dry-run");
   const crate: Record<Harness, string[]> = await $`cargo run -q --example events`.cwd(root).json();
-  const results: [Harness, string[]][] = [
-    ["codex", await codex(crate.codex)],
-    ["claude-code", await claude(crate["claude-code"])],
-    ["cursor", await cursor(crate.cursor)],
-    ["antigravity", await antigravity(crate.antigravity)],
+  const sources: [Harness, (crate: string[]) => Promise<string[]>][] = [
+    ["codex", codex],
+    ["claude-code", claude],
+    ["cursor", cursor],
+    ["antigravity", antigravity],
+    ["grok", grok],
   ];
-  for (const [harness, findings] of results) {
-    if (findings.length > 0) await report(harness, findings, dryRun);
-    else console.log(`${harness}: no drift`);
+  let failed = false;
+  for (const [harness, check] of sources) {
+    try {
+      const findings = await check(crate[harness]);
+      if (findings.length > 0) await report(harness, findings, dryRun);
+      else console.log(`${harness}: no drift`);
+    } catch (e) {
+      failed = true;
+      console.error(`${harness}: check failed:`, e);
+    }
   }
+  if (failed) process.exit(1);
 }
 
 if (import.meta.main) {

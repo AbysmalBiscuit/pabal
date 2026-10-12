@@ -1,0 +1,16 @@
+{
+  "hookEventName": "notification",
+  "sessionId": "01a1316a-2426-71f1-87d6-f7429ee93257",
+  "cwd": "/home/user/project",
+  "workspaceRoot": "/home/user/project",
+  "timestamp": "2026-10-12T18:40:02.530399462+00:00",
+  "transcriptPath": "/home/user/.grok/sessions/%2Fhome%2Fuser%2Fproject/01a1316a-2426-71f1-87d6-f7429ee93257/updates.jsonl",
+  "permissionMode": "bypassPermissions",
+  "notificationType": "agent_error",
+  "message": "API error (status 400 Bad Request): invalid_request_error: mock rejects this request",
+  "level": "error",
+  "hook_event_name": "Notification",
+  "session_id": "01a1316a-2426-71f1-87d6-f7429ee93257",
+  "transcript_path": "/home/user/.grok/sessions/%2Fhome%2Fuser%2Fproject/01a1316a-2426-71f1-87d6-f7429ee93257/updates.jsonl",
+  "permission_mode": "bypassPermissions"
+}

@@ -29,6 +29,7 @@ impl Harness for Antigravity {
         transcript_path: &["transcriptPath"],
         agent_id: &[],
         agent_type: &[],
+        agent: &[],
         tool_use_id: &[],
     };
     const KIND: AnyHarness = AnyHarness::Antigravity;

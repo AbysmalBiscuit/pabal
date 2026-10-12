@@ -1,0 +1,17 @@
+{
+  "hookEventName": "stop_failure",
+  "sessionId": "01a1316a-2426-71f1-87d6-f7429ee93257",
+  "cwd": "/home/user/project",
+  "workspaceRoot": "/home/user/project",
+  "timestamp": "2026-10-12T18:40:02.552348500+00:00",
+  "transcriptPath": "/home/user/.grok/sessions/%2Fhome%2Fuser%2Fproject/01a1316a-2426-71f1-87d6-f7429ee93257/updates.jsonl",
+  "promptId": "57f4d339-b1ba-4472-b7e7-b7ac8092de0c",
+  "permissionMode": "bypassPermissions",
+  "error": "invalid_request",
+  "errorDetails": "API error (status 400 Bad Request): invalid_request_error: mock rejects this request",
+  "lastAssistantMessage": "Turn failed: API error (status 400 Bad Request): invalid_request_error: mock rejects this request",
+  "hook_event_name": "StopFailure",
+  "session_id": "01a1316a-2426-71f1-87d6-f7429ee93257",
+  "transcript_path": "/home/user/.grok/sessions/%2Fhome%2Fuser%2Fproject/01a1316a-2426-71f1-87d6-f7429ee93257/updates.jsonl",
+  "permission_mode": "bypassPermissions"
+}

@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use pabal::{
     AntigravityView, AnyHarness, AnyPayload, ClaudeCode, ClaudeCodeView, CodexView, CursorView,
-    Edit, Fields, Payload, Tool,
+    Edit, Fields, GrokView, Payload, Tool,
 };
 use serde_json::Value;
 
@@ -85,6 +85,7 @@ fn is_other(payload: &AnyPayload) -> bool {
         AnyPayload::Codex(p) => matches!(p.view(), CodexView::Other(_)),
         AnyPayload::Cursor(p) => matches!(p.view(), CursorView::Other(_)),
         AnyPayload::Antigravity(p) => matches!(p.view(), AntigravityView::Other(_)),
+        AnyPayload::Grok(p) => matches!(p.view(), GrokView::Other(_)),
     }
 }
 
@@ -190,6 +191,23 @@ fn every_consumer_event_has_a_fixture() {
             "PostInvocation",
             "Stop",
         ]),
+        ("grok", &[
+            "SessionStart",
+            "UserPromptSubmit",
+            "PreToolUse",
+            "PostToolUse",
+            "PostToolUseFailure",
+            "PermissionDenied",
+            "Stop",
+            "StopFailure",
+            "StopCancelled",
+            "Notification",
+            "SubagentStart",
+            "SubagentStop",
+            "PreCompact",
+            "PostCompact",
+            "SessionEnd",
+        ]),
     ];
     let mut missing = Vec::new();
     for (harness, events) in expected {
@@ -260,6 +278,21 @@ fn every_tool_fixture_gives_its_tool_view() {
         ("cursor/preToolUse/read.json", "other Read"),
         ("cursor/preToolUse/shell.json", "shell -"),
         ("cursor/preToolUse/write.json", "write"),
+        ("grok/PermissionDenied/cli.json", "shell -"),
+        ("grok/PostToolUse/mcp.json", "mcp linear/save_issue"),
+        ("grok/PostToolUse/run-terminal-command.json", "shell -"),
+        ("grok/PostToolUse/search-replace.json", "write"),
+        ("grok/PostToolUseFailure/mcp.json", "mcp linear/save_issue"),
+        ("grok/PreToolUse/mcp.json", "mcp linear/save_issue"),
+        ("grok/PreToolUse/read-file.json", "other read_file"),
+        ("grok/PreToolUse/run-terminal-command.json", "shell -"),
+        ("grok/PreToolUse/search-replace.json", "write"),
+        (
+            "grok/PreToolUse/spawn-subagent.json",
+            "other spawn_subagent",
+        ),
+        ("grok/PreToolUse/subagent-read-file.json", "other read_file"),
+        ("grok/PreToolUse/write.json", "write"),
     ];
     let mut failures = Vec::new();
     for f in fixtures() {
@@ -270,7 +303,7 @@ fn every_tool_fixture_gives_its_tool_view() {
             .iter()
             .find(|(path, _)| *path == name)
             .map(|(_, k)| *k);
-        let names_a_tool = ["tool_name", "toolCall"]
+        let names_a_tool = ["tool_name", "toolCall", "toolName"]
             .iter()
             .any(|key| payload.raw().get(key).is_some());
         if names_a_tool && want.is_none() {
@@ -293,4 +326,76 @@ fn the_batch_fixture_gives_its_tool_calls() {
         .map(|call| kind(Some(call.tool)))
         .collect();
     assert_eq!(calls, ["other Read", "other Read"]);
+}
+
+fn grok(rel: &str) -> AnyPayload {
+    let text = std::fs::read_to_string(root().join("grok").join(rel)).unwrap();
+    AnyPayload::parse(AnyHarness::Grok, &text).unwrap()
+}
+
+#[test]
+fn grok_fields_read_its_camel_case_keys() {
+    let pre = grok("PreToolUse/run-terminal-command.json");
+    assert_eq!(
+        pre.session_id(),
+        Some("01a13168-584d-7843-9767-0ef65e885cd5")
+    );
+    assert_eq!(pre.cwd(), Some(Path::new("/home/user/project")));
+    assert_eq!(
+        pre.transcript_path(),
+        Some(Path::new(
+            "/home/user/.grok/sessions/%2Fhome%2Fuser%2Fproject/01a13168-584d-7843-9767-0ef65e885cd5/updates.jsonl"
+        ))
+    );
+    assert_eq!(pre.tool_use_id(), Some("call_3_0"));
+    assert_eq!((pre.agent_id(), pre.agent()), (None, None));
+}
+
+/// A subagent's own events carry its id as their session id, beside its
+/// type. `SubagentStart` fires in the parent session and names the child.
+#[test]
+fn grok_names_the_subagent_a_payload_speaks_for() {
+    let child = "01a13169-8c39-7383-98ff-c133574173d3";
+    let start = grok("SubagentStart/cli.json");
+    assert_eq!(
+        (start.agent_id(), start.agent()),
+        (Some(child), Some(child))
+    );
+    assert_ne!(start.session_id(), Some(child));
+    assert_eq!(grok("SubagentStop/cli.json").agent(), Some(child));
+    let call = grok("PreToolUse/subagent-read-file.json");
+    assert_eq!((call.agent_id(), call.agent()), (None, Some(child)));
+    assert_eq!(grok("PreToolUse/spawn-subagent.json").agent(), None);
+}
+
+#[test]
+fn grok_tools_read_the_recorded_inputs() {
+    assert_eq!(
+        grok("PreToolUse/run-terminal-command.json").tool(),
+        Some(Tool::Shell {
+            command: "echo pabal-probe",
+            cwd: Some(Path::new("/home/user/project")),
+            shell: None
+        })
+    );
+    for (rel, path) in [
+        ("PreToolUse/search-replace.json", "a.txt"),
+        ("PreToolUse/write.json", "b.txt"),
+    ] {
+        assert_eq!(
+            grok(rel).tool(),
+            Some(Tool::Edit(Edit::Write {
+                path: Path::new(path)
+            })),
+            "{rel}"
+        );
+    }
+    assert_eq!(
+        grok("PreToolUse/mcp.json").tool(),
+        Some(Tool::Mcp {
+            server: Some("linear"),
+            tool: "save_issue",
+            input: &serde_json::json!({"title": "x"})
+        })
+    );
 }

@@ -1,0 +1,50 @@
+{
+  "hookEventName": "post_tool_use",
+  "sessionId": "01a13168-b0d5-76e2-834b-db3b634bcc5d",
+  "cwd": "/home/user/project",
+  "workspaceRoot": "/home/user/project",
+  "timestamp": "2026-10-12T18:38:27.511063748+00:00",
+  "transcriptPath": "/home/user/.grok/sessions/%2Fhome%2Fuser%2Fproject/01a13168-b0d5-76e2-834b-db3b634bcc5d/updates.jsonl",
+  "permissionMode": "bypassPermissions",
+  "toolName": "linear__save_issue",
+  "toolUseId": "call_11_0",
+  "toolInput": {
+    "tool_name": "linear__save_issue",
+    "tool_input": {
+      "title": "x"
+    }
+  },
+  "toolResult": {
+    "type": "MCP",
+    "tool_name": "save_issue",
+    "server_name": "linear",
+    "output": {
+      "OkayOutput": "saved"
+    }
+  },
+  "toolInputTruncated": false,
+  "toolResultTruncated": false,
+  "durationMs": 4,
+  "isBackgrounded": false,
+  "hook_event_name": "PostToolUse",
+  "session_id": "01a13168-b0d5-76e2-834b-db3b634bcc5d",
+  "transcript_path": "/home/user/.grok/sessions/%2Fhome%2Fuser%2Fproject/01a13168-b0d5-76e2-834b-db3b634bcc5d/updates.jsonl",
+  "permission_mode": "bypassPermissions",
+  "tool_name": "linear__save_issue",
+  "tool_input": {
+    "tool_name": "linear__save_issue",
+    "tool_input": {
+      "title": "x"
+    }
+  },
+  "tool_response": {
+    "type": "MCP",
+    "tool_name": "save_issue",
+    "server_name": "linear",
+    "output": {
+      "OkayOutput": "saved"
+    }
+  },
+  "tool_use_id": "call_11_0",
+  "duration_ms": 4
+}

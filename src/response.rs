@@ -6,7 +6,7 @@ use std::fmt;
 use serde_json::{Map, Value, json};
 
 use crate::{
-    Antigravity, AnyHarness, ClaudeCode, Codex, Cursor, Harness,
+    Antigravity, AnyHarness, ClaudeCode, Codex, Cursor, Grok, Harness,
     view::{
         AnyPostToolUse, AnyPreToolUse, AnySessionStart, AnyStop, AnySubagentStart, AnySubagentStop,
         AnyUserPromptSubmit, BeforeMcpExecution, BeforeShellExecution, PostToolBatch, PostToolUse,
@@ -34,9 +34,9 @@ impl Response {
         self.0.as_ref()
     }
 
-    /// Denies a `PreToolUse` call when no payload could be parsed. On Cursor
-    /// the same envelope also denies `beforeShellExecution` and
-    /// `beforeMCPExecution`.
+    /// Denies a `PreToolUse` call when no payload could be parsed. Grok reads
+    /// Claude Code's envelope. On Cursor the same envelope also denies
+    /// `beforeShellExecution` and `beforeMCPExecution`.
     ///
     /// ```
     /// use pabal::{AnyHarness, Response};
@@ -51,7 +51,9 @@ impl Response {
     pub fn deny_pre_tool_use(harness: AnyHarness, reason: &str) -> Self {
         let reason = nonblank(reason, "Denied by a hook.");
         match harness {
-            AnyHarness::ClaudeCode | AnyHarness::Codex => permission("deny", Some(reason)),
+            AnyHarness::ClaudeCode | AnyHarness::Codex | AnyHarness::Grok => {
+                permission("deny", Some(reason))
+            }
             AnyHarness::Cursor => cursor_permission("deny", reason),
             AnyHarness::Antigravity => decision("deny", reason),
         }
@@ -94,8 +96,8 @@ fn cursor_permission(decision: &str, reason: &str) -> Response {
 }
 
 /// The top-level `decision` envelope: Antigravity's `PreToolUse` answer, and
-/// Claude Code's and Codex's block on `Stop` and `SubagentStop`. `reason`
-/// reaches the agent or the user, whichever the decision involves.
+/// Claude Code's, Codex's and Grok's block on `Stop` and `SubagentStop`.
+/// `reason` reaches the agent or the user, whichever the decision involves.
 fn decision(decision: &str, reason: &str) -> Response {
     Response(Some(json!({ "decision": decision, "reason": reason })))
 }
@@ -144,13 +146,28 @@ pub trait Deny {
 /// let p = Payload::<ClaudeCode>::parse("{}").unwrap();
 /// p.stop().unwrap().add_context("x");
 /// ```
+///
+/// Grok ignores `SessionStart` stdout and discards a `UserPromptSubmit`
+/// hook's context, so neither has it:
+///
+/// ```compile_fail
+/// use pabal::{AddContext, Grok, Payload};
+/// let p = Payload::<Grok>::parse(r#"{"hook_event_name":"SessionStart"}"#).unwrap();
+/// p.session_start().unwrap().add_context("x");
+/// ```
+///
+/// ```compile_fail
+/// use pabal::{AddContext, Grok, Payload};
+/// let p = Payload::<Grok>::parse(r#"{"hook_event_name":"UserPromptSubmit"}"#).unwrap();
+/// p.user_prompt_submit().unwrap().add_context("x");
+/// ```
 pub trait AddContext {
     /// The response that adds `text`.
     fn add_context(&self, text: &str) -> Response;
 }
 
-/// Asks the user to confirm the tool call. Claude Code's and Antigravity's
-/// `PreToolUse` and Cursor's `beforeShellExecution` have it; Codex fails
+/// Asks the user to confirm the tool call. Claude Code's, Antigravity's and
+/// Grok's `PreToolUse` and Cursor's `beforeShellExecution` have it; Codex fails
 /// open on `ask`, and Cursor ignores it on `preToolUse` and
 /// `beforeMCPExecution`:
 ///
@@ -166,11 +183,17 @@ pub trait Ask {
 
 /// Allows the tool call, skipping the user's own permission prompt. Only
 /// Claude Code's `PreToolUse` has it; Antigravity's CLI still prompts after
-/// an `allow`:
+/// an `allow`, and Grok reads `allow` as "not blocked":
 ///
 /// ```compile_fail
 /// use pabal::{Allow, Codex, Payload};
 /// let p = Payload::<Codex>::parse("{}").unwrap();
+/// p.pre_tool_use().unwrap().allow_skipping_prompt();
+/// ```
+///
+/// ```compile_fail
+/// use pabal::{Allow, Grok, Payload};
+/// let p = Payload::<Grok>::parse(r#"{"hook_event_name":"PreToolUse"}"#).unwrap();
 /// p.pre_tool_use().unwrap().allow_skipping_prompt();
 /// ```
 pub trait Allow {
@@ -180,8 +203,9 @@ pub trait Allow {
 
 /// Replaces the tool call's input before it runs, adding `context` to the
 /// agent's context in the same answer when given. The harness's own
-/// permission check then runs on the new input. Claude Code's, Codex's and
-/// Cursor's `PreToolUse` have it; Antigravity's answer has no input field:
+/// permission check then runs on the new input. Claude Code's, Codex's,
+/// Cursor's and Grok's `PreToolUse` have it; Antigravity's answer has no
+/// input field:
 ///
 /// ```compile_fail
 /// use pabal::{Antigravity, Payload, RewriteInput};
@@ -195,9 +219,9 @@ pub trait RewriteInput {
 }
 
 /// Keeps the agent from ending its turn, giving it `reason` as its next
-/// prompt. Claude Code's and Codex's `Stop` and `SubagentStop` and Cursor's
-/// `stop` have it; Antigravity's `Stop` and Cursor's `subagentStop` have
-/// none:
+/// prompt. Claude Code's, Codex's and Grok's `Stop` and `SubagentStop` and
+/// Cursor's `stop` have it; Antigravity's `Stop` and Cursor's `subagentStop`
+/// have none:
 ///
 /// ```compile_fail
 /// use pabal::{Antigravity, Block, Payload};
@@ -227,6 +251,14 @@ impl Ask for PreToolUse<'_, ClaudeCode> {
     }
 }
 
+/// Grok raises its permission prompt even where a mode or a saved grant
+/// would have approved the call, naming the hook and showing `reason`.
+impl Ask for PreToolUse<'_, Grok> {
+    fn ask(&self, reason: &str) -> Response {
+        permission("ask", Some(reason))
+    }
+}
+
 impl Allow for PreToolUse<'_, ClaudeCode> {
     fn allow_skipping_prompt(&self) -> Response {
         permission("allow", None)
@@ -248,6 +280,14 @@ fn hook_specific_rewrite(
 /// The input replaces the whole object, so it keeps the fields the hook
 /// leaves alone.
 impl RewriteInput for PreToolUse<'_, ClaudeCode> {
+    fn rewrite_input(&self, input: Map<String, Value>, context: Option<&str>) -> Response {
+        hook_specific_rewrite(Map::new(), input, context)
+    }
+}
+
+/// Grok applies the last rewrite once every hook has run, and blocks the call
+/// when the new input fails the tool's schema.
+impl RewriteInput for PreToolUse<'_, Grok> {
     fn rewrite_input(&self, input: Map<String, Value>, context: Option<&str>) -> Response {
         hook_specific_rewrite(Map::new(), input, context)
     }
@@ -296,7 +336,9 @@ decision_block!(
     Stop ClaudeCode,
     Stop Codex,
     SubagentStop ClaudeCode,
-    SubagentStop Codex
+    SubagentStop Codex,
+    Stop Grok,
+    SubagentStop Grok
 );
 
 /// Cursor submits the message as the user's next prompt, and stops
@@ -316,6 +358,7 @@ impl AnyStop<'_> {
             AnyStop::ClaudeCode(v) => Some(v.block(reason)),
             AnyStop::Codex(v) => Some(v.block(reason)),
             AnyStop::Cursor(v) => Some(v.block(reason)),
+            AnyStop::Grok(v) => Some(v.block(reason)),
             AnyStop::Antigravity(_) => None,
         }
     }
@@ -327,6 +370,7 @@ impl AnySubagentStop<'_> {
         match self {
             AnySubagentStop::ClaudeCode(v) => Some(v.block(reason)),
             AnySubagentStop::Codex(v) => Some(v.block(reason)),
+            AnySubagentStop::Grok(v) => Some(v.block(reason)),
             AnySubagentStop::Cursor(_) => None,
         }
     }
@@ -357,14 +401,8 @@ impl Ask for BeforeShellExecution<'_> {
 }
 
 macro_rules! add_context {
-    ($($view:ident),*) => {$(
-        impl AddContext for $view<'_, ClaudeCode> {
-            fn add_context(&self, text: &str) -> Response {
-                context(stringify!($view), text)
-            }
-        }
-
-        impl AddContext for $view<'_, Codex> {
+    ($($view:ident $harness:ident),*) => {$(
+        impl AddContext for $view<'_, $harness> {
             fn add_context(&self, text: &str) -> Response {
                 context(stringify!($view), text)
             }
@@ -373,11 +411,20 @@ macro_rules! add_context {
 }
 
 add_context!(
-    PreToolUse,
-    PostToolUse,
-    UserPromptSubmit,
-    SessionStart,
-    SubagentStart
+    PreToolUse ClaudeCode,
+    PreToolUse Codex,
+    PostToolUse ClaudeCode,
+    PostToolUse Codex,
+    UserPromptSubmit ClaudeCode,
+    UserPromptSubmit Codex,
+    SessionStart ClaudeCode,
+    SessionStart Codex,
+    SubagentStart ClaudeCode,
+    SubagentStart Codex,
+    // Grok delivers the text to the model after the call has run, beside
+    // its result.
+    PreToolUse Grok,
+    PostToolUse Grok
 );
 
 macro_rules! cursor_add_context {
@@ -391,16 +438,6 @@ macro_rules! cursor_add_context {
 }
 
 cursor_add_context!(SessionStart, PreToolUse, PostToolUse);
-
-impl AddContext for AnySessionStart<'_> {
-    fn add_context(&self, text: &str) -> Response {
-        match self {
-            AnySessionStart::ClaudeCode(v) => v.add_context(text),
-            AnySessionStart::Codex(v) => v.add_context(text),
-            AnySessionStart::Cursor(v) => v.add_context(text),
-        }
-    }
-}
 
 macro_rules! any_add_context {
     ($($any:ident [$($with:ident)*] [$($without:ident)*];)*) => {$(
@@ -417,10 +454,11 @@ macro_rules! any_add_context {
 }
 
 any_add_context! {
-    AnyPreToolUse [ClaudeCode Codex Cursor] [Antigravity];
-    AnyPostToolUse [ClaudeCode Codex Cursor] [Antigravity];
-    AnyUserPromptSubmit [ClaudeCode Codex] [Cursor];
-    AnySubagentStart [ClaudeCode Codex] [Cursor];
+    AnySessionStart [ClaudeCode Codex Cursor] [Grok];
+    AnyPreToolUse [ClaudeCode Codex Cursor Grok] [Antigravity];
+    AnyPostToolUse [ClaudeCode Codex Cursor Grok] [Antigravity];
+    AnyUserPromptSubmit [ClaudeCode Codex] [Cursor Grok];
+    AnySubagentStart [ClaudeCode Codex] [Cursor Grok];
 }
 
 impl Deny for AnyPreToolUse<'_> {
@@ -435,6 +473,7 @@ impl AnyPreToolUse<'_> {
         match self {
             AnyPreToolUse::ClaudeCode(v) => Some(v.ask(reason)),
             AnyPreToolUse::Antigravity(v) => Some(v.ask(reason)),
+            AnyPreToolUse::Grok(v) => Some(v.ask(reason)),
             AnyPreToolUse::Codex(_) | AnyPreToolUse::Cursor(_) => None,
         }
     }
@@ -449,6 +488,7 @@ impl AnyPreToolUse<'_> {
             AnyPreToolUse::ClaudeCode(v) => Some(v.rewrite_input(input, context)),
             AnyPreToolUse::Codex(v) => Some(v.rewrite_input(input, context)),
             AnyPreToolUse::Cursor(v) => Some(v.rewrite_input(input, context)),
+            AnyPreToolUse::Grok(v) => Some(v.rewrite_input(input, context)),
             AnyPreToolUse::Antigravity(_) => None,
         }
     }
@@ -457,9 +497,10 @@ impl AnyPreToolUse<'_> {
     pub fn allow_skipping_prompt(&self) -> Option<Response> {
         match self {
             AnyPreToolUse::ClaudeCode(v) => Some(v.allow_skipping_prompt()),
-            AnyPreToolUse::Codex(_) | AnyPreToolUse::Cursor(_) | AnyPreToolUse::Antigravity(_) => {
-                None
-            }
+            AnyPreToolUse::Codex(_)
+            | AnyPreToolUse::Cursor(_)
+            | AnyPreToolUse::Antigravity(_)
+            | AnyPreToolUse::Grok(_) => None,
         }
     }
 }

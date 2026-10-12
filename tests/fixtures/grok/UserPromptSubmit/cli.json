@@ -1,0 +1,13 @@
+{
+  "hookEventName": "user_prompt_submit",
+  "sessionId": "01a13167-6b8d-7b90-bc04-04b3e4693684",
+  "cwd": "/home/user/project",
+  "workspaceRoot": "/home/user/project",
+  "timestamp": "2026-10-12T18:37:03.978236065+00:00",
+  "promptId": "91bf9bc3-7bf1-4f16-826e-608941c37445",
+  "permissionMode": "auto",
+  "prompt": "Reply ok",
+  "hook_event_name": "UserPromptSubmit",
+  "session_id": "01a13167-6b8d-7b90-bc04-04b3e4693684",
+  "permission_mode": "auto"
+}

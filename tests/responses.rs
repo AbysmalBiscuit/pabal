@@ -229,7 +229,7 @@ fn any_view_context_on_every_shared_context_event() {
             let r = match p.view() {
                 AnyView::PostToolUse(v) => v.add_context("x").unwrap(),
                 AnyView::UserPromptSubmit(v) => v.add_context("x").unwrap(),
-                AnyView::SessionStart(v) => v.add_context("x"),
+                AnyView::SessionStart(v) => v.add_context("x").unwrap(),
                 AnyView::SubagentStart(v) => v.add_context("x").unwrap(),
                 _ => panic!("{event}"),
             };
@@ -291,7 +291,7 @@ fn cursor_context_is_a_top_level_field() {
     let AnyView::SessionStart(v) = p.view() else {
         panic!()
     };
-    assert_eq!(parsed(&v.add_context("x")), expected);
+    assert_eq!(parsed(&v.add_context("x").unwrap()), expected);
 }
 
 #[test]
@@ -377,6 +377,7 @@ fn each_harness_rewrites_a_recorded_call_in_its_own_envelope() {
     });
     let codex_input = json!({"command": "HOLDER=a cargo test"});
     let cursor_input = json!({"command": "HOLDER=a echo pabal-probe", "cwd": "", "timeout": 30000});
+    let grok_input = json!({"command": "HOLDER=a echo pabal-probe", "description": "probe"});
     let cases = [
         (
             AnyHarness::ClaudeCode,
@@ -411,6 +412,19 @@ fn each_harness_rewrites_a_recorded_call_in_its_own_envelope() {
             "cursor/preToolUse/shell.json",
             json!({"updated_input": cursor_input, "additional_context": "tagged"}),
             json!({"updated_input": cursor_input}),
+        ),
+        (
+            AnyHarness::Grok,
+            "grok/PreToolUse/run-terminal-command.json",
+            json!({"hookSpecificOutput": {
+                "hookEventName": "PreToolUse",
+                "updatedInput": grok_input,
+                "additionalContext": "tagged"
+            }}),
+            json!({"hookSpecificOutput": {
+                "hookEventName": "PreToolUse",
+                "updatedInput": grok_input
+            }}),
         ),
     ];
     for (harness, rel, with_context, without_context) in cases {
@@ -451,6 +465,8 @@ fn each_harness_blocks_a_recorded_stop_in_its_own_envelope() {
             "cursor/stop/cli.json",
             &json!({"followup_message": "finish the todos"}),
         ),
+        (AnyHarness::Grok, "grok/Stop/end-turn.json", &decision),
+        (AnyHarness::Grok, "grok/SubagentStop/cli.json", &decision),
     ];
     for (harness, rel, expected) in cases {
         let payload = fixture(harness, rel);
@@ -497,4 +513,81 @@ fn a_blank_block_reason_is_replaced() {
         "{reasons:?}"
     );
     assert!(reasons.iter().all(|r| r == &reasons[0]), "{reasons:?}");
+}
+
+/// Each envelope here is one the `grok` CLI honors: the deny blocks the call
+/// and tells the model the reason, the ask raises the permission prompt, and
+/// both contexts reach the model beside the call's result.
+#[test]
+fn grok_answers_a_recorded_tool_call_in_claudes_envelope() {
+    let pre = fixture(
+        AnyHarness::Grok,
+        "grok/PreToolUse/run-terminal-command.json",
+    );
+    let AnyView::PreToolUse(pre) = pre.view() else {
+        panic!()
+    };
+    let decision = |decision: &str, reason: &str| {
+        json!({"hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "permissionDecision": decision,
+            "permissionDecisionReason": reason
+        }})
+    };
+    assert_eq!(
+        parsed(&pre.deny("use devrun")),
+        decision("deny", "use devrun")
+    );
+    assert_eq!(
+        Response::deny_pre_tool_use(AnyHarness::Grok, "use devrun"),
+        pre.deny("use devrun")
+    );
+    assert_eq!(
+        pre.ask("sure?").map(|r| parsed(&r)),
+        Some(decision("ask", "sure?"))
+    );
+    assert_eq!(
+        pre.add_context("x").map(|r| parsed(&r)),
+        Some(context("PreToolUse"))
+    );
+    let post = fixture(
+        AnyHarness::Grok,
+        "grok/PostToolUse/run-terminal-command.json",
+    );
+    let AnyView::PostToolUse(post) = post.view() else {
+        panic!()
+    };
+    assert_eq!(
+        post.add_context("x").map(|r| parsed(&r)),
+        Some(context("PostToolUse"))
+    );
+}
+
+/// Grok ignores `SessionStart` stdout, discards a `UserPromptSubmit` hook's
+/// context, treats `SubagentStart` as passive, and still prompts after an
+/// `allow`.
+#[test]
+fn any_view_offers_grok_only_what_it_honors() {
+    let p = fixture(
+        AnyHarness::Grok,
+        "grok/PreToolUse/run-terminal-command.json",
+    );
+    let AnyView::PreToolUse(pre) = p.view() else {
+        panic!()
+    };
+    assert_eq!(pre.allow_skipping_prompt(), None);
+    for rel in [
+        "grok/SessionStart/cli.json",
+        "grok/UserPromptSubmit/cli.json",
+        "grok/SubagentStart/cli.json",
+    ] {
+        let p = fixture(AnyHarness::Grok, rel);
+        let r = match p.view() {
+            AnyView::SessionStart(v) => v.add_context("x"),
+            AnyView::UserPromptSubmit(v) => v.add_context("x"),
+            AnyView::SubagentStart(v) => v.add_context("x"),
+            _ => panic!("{rel}"),
+        };
+        assert_eq!(r, None, "{rel}");
+    }
 }

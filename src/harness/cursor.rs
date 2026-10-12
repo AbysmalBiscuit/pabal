@@ -30,6 +30,7 @@ impl Harness for Cursor {
         session_id: &["session_id", "conversation_id"],
         agent_id: &["subagent_id"],
         agent_type: &["subagent_type"],
+        agent: &["subagent_id"],
         ..Keys::SNAKE_CASE
     };
     const KIND: AnyHarness = AnyHarness::Cursor;

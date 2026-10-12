@@ -1,0 +1,16 @@
+{
+  "hookEventName": "stop_cancelled",
+  "sessionId": "01a13169-e11f-7820-9bde-7eea185f7877",
+  "cwd": "/home/user/project",
+  "workspaceRoot": "/home/user/project",
+  "timestamp": "2026-10-12T18:39:45.362765142+00:00",
+  "transcriptPath": "/home/user/.grok/sessions/%2Fhome%2Fuser%2Fproject/01a13169-e11f-7820-9bde-7eea185f7877/updates.jsonl",
+  "promptId": "b88761e1-965c-40df-9b79-58e8b84d05ab",
+  "permissionMode": "bypassPermissions",
+  "reason": "max_turns",
+  "cancelledBy": "runtime",
+  "hook_event_name": "StopCancelled",
+  "session_id": "01a13169-e11f-7820-9bde-7eea185f7877",
+  "transcript_path": "/home/user/.grok/sessions/%2Fhome%2Fuser%2Fproject/01a13169-e11f-7820-9bde-7eea185f7877/updates.jsonl",
+  "permission_mode": "bypassPermissions"
+}

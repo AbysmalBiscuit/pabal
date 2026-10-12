@@ -8,11 +8,13 @@ mod antigravity;
 mod claude_code;
 mod codex;
 mod cursor;
+mod grok;
 
 pub use antigravity::Antigravity;
 pub use claude_code::ClaudeCode;
 pub use codex::Codex;
 pub use cursor::Cursor;
+pub use grok::Grok;
 
 mod sealed {
     pub trait Sealed {}
@@ -52,6 +54,8 @@ pub struct Keys {
     pub transcript_path: &'static [&'static str],
     pub agent_id: &'static [&'static str],
     pub agent_type: &'static [&'static str],
+    /// The keys `agent()` reads once `agent_type` is set.
+    pub agent: &'static [&'static str],
     pub tool_use_id: &'static [&'static str],
 }
 
@@ -63,14 +67,15 @@ impl Keys {
         transcript_path: &["transcript_path"],
         agent_id: &["agent_id"],
         agent_type: &["agent_type"],
+        agent: &["agent_id"],
         tool_use_id: &["tool_use_id"],
     };
 }
 
 /// A harness chosen at runtime, from a `--harness` flag or from the payload.
 ///
-/// Its string forms are `claude-code` (alias `claude`), `codex`, `cursor` and
-/// `antigravity`.
+/// Its string forms are `claude-code` (alias `claude`), `codex`, `cursor`,
+/// `antigravity` and `grok`.
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, strum::EnumString, strum::Display, strum::IntoStaticStr,
 )]
@@ -84,10 +89,13 @@ pub enum AnyHarness {
     Codex,
     Cursor,
     Antigravity,
+    Grok,
 }
 
 impl AnyHarness {
-    /// Guesses the harness. `conversationId` means Antigravity. A Cursor
+    /// Guesses the harness. `hookEventName` or `workspaceRoot` means Grok,
+    /// whose `hook_event_name` carries Claude Code's event names.
+    /// `conversationId` means Antigravity. A Cursor
     /// event name (camelCase), or any camelCase event with `cursor_version`,
     /// means Cursor. A PascalCase event with `cursor_version` means Claude
     /// Code: Cursor's docs say it sends hooks configured for Claude Code
@@ -107,6 +115,9 @@ impl AnyHarness {
     /// ```
     pub fn infer(raw: &Value) -> AnyHarness {
         let has = |key| raw.get(key).is_some_and(|v| !v.is_null());
+        if has("hookEventName") || has("workspaceRoot") {
+            return AnyHarness::Grok;
+        }
         if has("conversationId") {
             return AnyHarness::Antigravity;
         }
@@ -159,6 +170,8 @@ mod tests {
             "antigravity".parse::<AnyHarness>().unwrap(),
             AnyHarness::Antigravity
         );
+        assert_eq!("grok".parse::<AnyHarness>().unwrap(), AnyHarness::Grok);
+        assert_eq!(AnyHarness::Grok.to_string(), "grok");
     }
 
     #[cfg(feature = "clap")]
@@ -273,6 +286,24 @@ mod tests {
         assert_eq!(AnyHarness::infer(&p), AnyHarness::ClaudeCode);
         let p = json!({"hook_event_name": "PreToolUse", "turn_id": "t", "cursor_version": null});
         assert_eq!(AnyHarness::infer(&p), AnyHarness::Codex);
+    }
+
+    /// Grok's `hook_event_name` carries Claude Code's event names, so only
+    /// its camelCase envelope keys tell it apart.
+    #[test]
+    fn grok_is_told_apart_by_its_camel_case_envelope() {
+        let stop = json!({
+            "hookEventName": "stop", "sessionId": "s", "cwd": "/w", "workspaceRoot": "/w",
+            "reason": "end_turn", "stopHookActive": false,
+            "hook_event_name": "Stop", "session_id": "s", "permission_mode": "default"
+        });
+        assert_eq!(AnyHarness::infer(&stop), AnyHarness::Grok);
+        let only_root = json!({"hook_event_name": "PreToolUse", "workspaceRoot": "/w"});
+        assert_eq!(AnyHarness::infer(&only_root), AnyHarness::Grok);
+        let only_name = json!({"hook_event_name": "Notification", "hookEventName": "notification"});
+        assert_eq!(AnyHarness::infer(&only_name), AnyHarness::Grok);
+        let claude = json!({"hook_event_name": "Stop", "session_id": "s", "cwd": "/w"});
+        assert_eq!(AnyHarness::infer(&claude), AnyHarness::ClaudeCode);
     }
 
     #[test]
