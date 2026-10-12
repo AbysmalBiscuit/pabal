@@ -80,14 +80,14 @@ test("cursorEvents reads the headings under Hook events", () => {
   expect(cursorEvents(md)).toEqual(["preToolUse", "beforeShellExecution", "beforeMCPExecution", "workspaceOpen"]);
 });
 
-test("antigravityEvents reads the Supported Events table", () => {
+test("antigravityEvents reads the Supported events table", () => {
   const md = [
     "| `PreToolUse` | array | Handlers that run before a tool is executed. |",
-    "## Supported Events",
+    "## Supported events",
     "",
     "| Event | Description | Matcher Target |",
     "| :-- | :-- | :-- |",
-    "| `PreToolUse` | Fires before a tool is executed. | Tool name (e.g., `run_command`) |",
+    "| `PreToolUse` | Fires before a tool is executed. | Tool name (for example, `run_command`) |",
     "| `Stop` | Fires when execution terminates. | N/A (matcher ignored) |",
     "",
     "### Matcher",

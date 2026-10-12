@@ -56,10 +56,10 @@ export function cursorEvents(md: string): string[] {
   return [...section.matchAll(/^#### (.+)$/gm)].flatMap((m) => m[1].split(" / ").map((e) => e.trim()));
 }
 
-/** The first-column events of the table under `## Supported Events` in Antigravity's hooks docs. */
+/** The first-column events of the table under `## Supported events` in Antigravity's hooks docs. */
 export function antigravityEvents(md: string): string[] {
-  const start = md.indexOf("\n## Supported Events");
-  if (start < 0) throw new Error("## Supported Events not found in Antigravity's hooks docs");
+  const start = md.search(/\n## Supported events/i);
+  if (start < 0) throw new Error("## Supported events not found in Antigravity's hooks docs");
   const end = md.slice(start + 1).search(/\n#{2,3} /);
   const section = md.slice(start, end < 0 ? undefined : start + 1 + end);
   return [...section.matchAll(/^\| `(\w+)` \|/gm)].map((m) => m[1]);
