@@ -401,14 +401,8 @@ impl Ask for BeforeShellExecution<'_> {
 }
 
 macro_rules! add_context {
-    ($($view:ident),*) => {$(
-        impl AddContext for $view<'_, ClaudeCode> {
-            fn add_context(&self, text: &str) -> Response {
-                context(stringify!($view), text)
-            }
-        }
-
-        impl AddContext for $view<'_, Codex> {
+    ($($view:ident $harness:ident),*) => {$(
+        impl AddContext for $view<'_, $harness> {
             fn add_context(&self, text: &str) -> Response {
                 context(stringify!($view), text)
             }
@@ -417,11 +411,20 @@ macro_rules! add_context {
 }
 
 add_context!(
-    PreToolUse,
-    PostToolUse,
-    UserPromptSubmit,
-    SessionStart,
-    SubagentStart
+    PreToolUse ClaudeCode,
+    PreToolUse Codex,
+    PostToolUse ClaudeCode,
+    PostToolUse Codex,
+    UserPromptSubmit ClaudeCode,
+    UserPromptSubmit Codex,
+    SessionStart ClaudeCode,
+    SessionStart Codex,
+    SubagentStart ClaudeCode,
+    SubagentStart Codex,
+    // Grok delivers the text to the model after the call has run, beside
+    // its result.
+    PreToolUse Grok,
+    PostToolUse Grok
 );
 
 macro_rules! cursor_add_context {
@@ -435,20 +438,6 @@ macro_rules! cursor_add_context {
 }
 
 cursor_add_context!(SessionStart, PreToolUse, PostToolUse);
-
-/// Grok delivers the text to the model after the call has run, beside its
-/// result.
-macro_rules! grok_add_context {
-    ($($view:ident),*) => {$(
-        impl AddContext for $view<'_, Grok> {
-            fn add_context(&self, text: &str) -> Response {
-                context(stringify!($view), text)
-            }
-        }
-    )*};
-}
-
-grok_add_context!(PreToolUse, PostToolUse);
 
 macro_rules! any_add_context {
     ($($any:ident [$($with:ident)*] [$($without:ident)*];)*) => {$(
