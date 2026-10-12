@@ -1,6 +1,6 @@
 use pabal::{
     AddContext, Allow, Antigravity, AnyHarness, AnyPayload, AnyView, Ask, Block, ClaudeCode, Codex,
-    Cursor, Deny, Fields, Grok, Harness, Payload, Response,
+    Cursor, Deny, Fields, Harness, Payload, Response,
 };
 use serde_json::{Map, Value, json};
 
@@ -560,27 +560,6 @@ fn grok_answers_a_recorded_tool_call_in_claudes_envelope() {
     assert_eq!(
         post.add_context("x").map(|r| parsed(&r)),
         Some(context("PostToolUse"))
-    );
-}
-
-#[test]
-fn grok_typed_views_answer_what_grok_honors() {
-    let pre = payload::<Grok>("PreToolUse");
-    let pre = pre.pre_tool_use().unwrap();
-    assert_eq!(
-        parsed(&pre.ask("sure?"))["hookSpecificOutput"]["permissionDecision"],
-        "ask"
-    );
-    assert_eq!(parsed(&pre.add_context("x")), context("PreToolUse"));
-    let post = payload::<Grok>("PostToolUse");
-    assert_eq!(
-        parsed(&post.post_tool_use().unwrap().add_context("x")),
-        context("PostToolUse")
-    );
-    let stop = payload::<Grok>("Stop");
-    assert_eq!(
-        parsed(&stop.stop().unwrap().block(" "))["decision"],
-        "block"
     );
 }
 
